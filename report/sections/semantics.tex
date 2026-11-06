@@ -1,0 +1,41 @@
+\section{Semantics before representation}
+
+A finite subspace code is specified by a physical tensor product
+$\mathcal H_P=\bigotimes_{j=1}^{n}\mathcal H_j$ and a subspace
+$\mathcal C\subseteq\mathcal H_P$. An isometry
+$V:\mathcal H_L\to\mathcal H_P$ specifies the subspace and a logical basis;
+the projector $P=VV^\dagger$ forgets that basis. The factorization of the
+physical space is indispensable for defining local errors and their weight.
+Neither a decoder nor a noise channel is intrinsic to this definition.
+
+For a channel with Kraus operators $E_a$, exact subspace correction obeys
+\begin{equation}
+ V^\dagger E_a^\dagger E_b V=c_{ab}I_L.
+\end{equation}
+This separates a code description from the error family against which it
+is evaluated~\cite{knill1997}. Approximate correction additionally needs a
+metric, tolerance, and operational domain.
+
+A subsystem encoding has the form
+$V:\mathcal H_L\otimes\mathcal H_G\to\mathcal H_P$ and protects only
+$\mathcal H_L$. Its correction condition replaces the scalar identity by
+$I_L\otimes M_{ab}$~\cite{kribs2006}. More general logical algebras permit
+classical sector labels. Such semantics is broad, but explicit matrices
+scale with the physical Hilbert-space dimension. For $n$ qubits a dense
+projector has $4^n$ entries. Universality of meaning is therefore not
+universality of efficient storage or analysis.
+
+We choose specialized dialects by their algorithmic capabilities: finite
+subspace/algebra, Pauli stabilizer, CSS chain complex, Pauli subsystem,
+bosonic operator/lattice, and temporal measurement instrument. This is an
+engineering choice rather than a classification theorem requiring exactly
+six disjoint kinds of code.
+
+A bosonic description needs modes, an operator domain, and physical
+normalizability assumptions. Ideal grid-code expressions and finite-energy
+approximations must be distinguished~\cite{gkp2001}. A finite cutoff changes
+the problem unless an approximation estimate is supplied. Similarly,
+measurement order cannot be discarded for dynamical codes: a static gauge
+group can miss the logical information maintained by a periodic
+protocol~\cite{hastings2021}. Temporal and analytic structure must remain
+explicit even when a finite computational backend is available.

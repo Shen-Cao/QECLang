@@ -1,0 +1,56 @@
+\section{Architecture and research milestones}
+
+The implementation starts with immutable Python values and exact packed
+binary rows. Bitwise XOR and parity give an inspectable reference backend.
+This does not imply optimal sparse asymptotics: elimination can fill in,
+and expanding structured lifts can dominate memory. Profiling should
+separate construction, expansion, validation, rank, distance, and decoding.
+
+A future expression layer should retain products, symmetry, and quotient
+relations until lowering is requested. Each lowering should carry source
+and target identifiers, assumptions, preservation claims, and a checkable
+certificate where possible. Algebraic equivalence must not silently imply
+preservation of physical weight or sparse measurement scheduling.
+
+The executable scope includes binary matrices, chain/CSS objects, signed
+stabilizer validation, subsystem modules with signed center sectors,
+structured finite constructions, and bounded analysis/decoder baselines.
+Sparse abelian group-algebra operations lower to regular representations.
+Optional NumPy semantics checks finite isometries and operator
+Knill--Laflamme residuals; signed stabilizers can be lowered with an explicit
+dimension guard. Optional MILP analysis keeps solver evidence distinct
+from exact enumeration. Versioned JSON, a CLI, and seeded experiments
+support reproducibility. CSS transformations and validated chain maps
+expose induced homology actions; quasi-isomorphism alone carries no
+physical-distance guarantee. Wider
+semantic coverage is a design target. Prime-power qudits, noncommutative
+module constructions, scalable nonadditive simulation, bosonic analytic
+operators, and temporal protocol compilation require distinct extensions.
+
+The implementation strategy is deliberately incremental. Keep the Python
+API stable while comparing packed kernels with sparse/dense native
+backends. Add optional symbolic adapters for mature computer-algebra
+systems, and numerical adapters for optimization. Adopt a compiler
+framework only once rewrite contracts and target workloads justify it.
+A GPU implementation can improve a suitable batch kernel; it cannot
+remove combinatorial hardness.
+
+For formal verification, begin with the chain condition, quotient
+dimension identities, commuting-block constructions, and witness
+checkers. Lean can support this program~\cite{demoura2021}, but a proof
+about abstract matrices does not automatically verify Python parsing or
+serialization. The trusted boundary must be stated explicitly.
+
+A reproducible discovery loop generates valid structured candidates,
+filters by cheap exact invariants, computes bounded distance evidence,
+and allocates decoding experiments to promising candidates. Every result
+should retain construction parameters and tool versions. An agent can
+suggest formulas, transformations, and conjectures; deterministic
+validators and proof checkers decide acceptance.
+
+The principal open engineering questions are whether symbolic family
+analysis can avoid repeated matrix expansion, which rewrites preserve
+weight and locality, how small certificates can make heterogeneous solver
+results auditable, and which finite-size improvements survive realistic
+extraction costs. These are research questions rather than claimed
+results of the initial implementation.

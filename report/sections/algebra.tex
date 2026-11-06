@@ -1,0 +1,69 @@
+\section{Exact binary algebra}
+
+\subsection{Pauli and subsystem data}
+Represent a Pauli by $i^p X^x Z^z$ with $x,z\in\F^n$ and
+$p\in\mathbb Z/4\mathbb Z$. Its support weight is
+$|\operatorname{supp}(x)\cup\operatorname{supp}(z)|$, not the Hamming
+weight of the concatenated vector. The commutation pairing is
+\begin{equation}
+ \langle(x,z),(x',z')\rangle_s=x\cdot z'+z\cdot x'.
+\end{equation}
+A stabilizer code requires Hermitian commuting generators whose group
+excludes $-I$. Support orthogonality alone does not check the last
+condition. If the support space $S$ has dimension $s$, the code has
+$k=n-s$ logical qubits. Nontrivial Pauli logical operators lie in
+$S^\perp\setminus S$~\cite{gottesman1997}.
+
+For a phase-free gauge support space $G$, let $S=G\cap G^\perp$,
+$g=\dim G$, and $s=\dim S$. Then
+\begin{equation}
+ r=(g-s)/2,\qquad k=n-(g+s)/2.
+\end{equation}
+The dressed and bare logical quotients are respectively
+$S^\perp/G$ and $G^\perp/S$~\cite{poulin2005}. Gauge support determines
+these parameters; specifying a particular embedded subsystem also requires
+consistent eigenvalues for the center. Gauge fixing is an additional
+operation with choices, not a representation identity.
+
+\subsection{The CSS chain dialect}
+Let $H_X\in\F^{m_X\times n}$ and $H_Z\in\F^{m_Z\times n}$ with
+$H_XH_Z^T=0$. We fix positive pure-X and pure-Z generators and the complex
+\begin{equation}
+ C_2=\F^{m_Z}\xrightarrow{d_2=H_Z^T}
+ C_1=\F^n\xrightarrow{d_1=H_X}C_0=\F^{m_X}.
+\end{equation}
+The bases are part of the data. For a Pauli error $(x,z)$ the two
+syndromes are $H_Xz$ and $H_Zx$. The logical spaces are
+\begin{equation}
+ L_Z=\ker H_X/\row H_Z,\qquad
+ L_X=\ker H_Z/\row H_X.
+\end{equation}
+
+\begin{proposition}
+The number of logical qubits is
+$k=n-\rank H_X-\rank H_Z$.
+\end{proposition}
+\begin{proof}
+The boundary condition gives $\im d_2\subseteq\ker d_1$.
+Rank--nullity gives
+$\dim\ker d_1=n-\rank H_X$, while
+$\dim\im d_2=\rank H_Z$. Taking the quotient proves the claim.
+\end{proof}
+
+For $k>0$, define
+\begin{align}
+ d_Z&=\min\{\wt z:z\in\ker H_X\setminus\row H_Z\},\\
+ d_X&=\min\{\wt x:x\in\ker H_Z\setminus\row H_X\}.
+\end{align}
+The Pauli distance is $\min(d_X,d_Z)$: a nontrivial mixed logical must
+have at least one nontrivial component, and either pure sector is itself
+an allowed logical. This is a metric statement about based homology and
+cohomology, not just their dimensions. The software uses infinite
+\emph{logical} distance for $k=0$, since the nontrivial-logical sets are
+empty; other conventions for stabilizer-state distance exist.
+
+Changing check generators preserves row spaces but can make their
+supports dense. Changing arbitrary chain bases preserves abstract
+homology but can change Hamming distance. Consequently a compiler must
+track logical equivalence, metric preservation, and measurement
+presentation as different properties.

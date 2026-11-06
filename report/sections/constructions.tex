@@ -1,0 +1,52 @@
+\section{Construction primitives}
+
+The algebraic language should include direct sums, tensor products,
+transposes and involutions, block composition, quotient modules, symmetry
+actions, and explicit choices of basis. Not every operation applies to
+every dialect. A construction rule should record its hypotheses and a
+verifier for its finite output.
+
+\subsection{Hypergraph product}
+For binary matrices $A$ and $B$ of shapes $m_1\times n_1$ and
+$m_2\times n_2$, define
+\begin{align}
+ H_X&=[A\otimes I_{n_2}\mid I_{m_1}\otimes B^T],\\
+ H_Z&=[I_{n_1}\otimes B\mid A^T\otimes I_{m_2}].
+\end{align}
+Then $H_XH_Z^T=A\otimes B^T+A\otimes B^T=0$ over $\F$.
+The blocklength is $n_1n_2+m_1m_2$. Writing
+$k_i=n_i-\rank H_i$ and $k_i^T=m_i-\rank H_i$, the logical count is
+$k_1k_2+k_1^Tk_2^T$~\cite{tillich2014}. The ability to state such a
+formula at construction level is a benefit of retaining structure rather
+than only its expanded parity-check matrix.
+
+\subsection{Commuting blocks and lifts}
+If square binary matrices $A$ and $B$ commute, then
+\begin{equation}
+ H_X=[A\mid B],\qquad H_Z=[B^T\mid A^T]
+\end{equation}
+form a CSS code because $AB+BA=0$. Commuting shift operators, represented
+by polynomials in a finite quotient ring, provide compact parameters for
+such blocks. Bivariate bicycle codes illustrate the practical interest
+of this design space~\cite{bravyi2024}.
+
+A symbolic primitive should define its coefficient ring, quotient
+relations, involution, basis ordering, and expansion map. For
+noncommutative group algebras, left and right module actions cannot be
+silently interchanged. Lifted-product constructions exploit this richer
+structure, and asymptotically good qLDPC families are already known
+\cite{panteleev2022}. Merely validating commutation does not reproduce
+their distance proofs.
+
+\subsection{Families and locality}
+A qLDPC claim concerns a family with generator weight and participation
+per physical qubit bounded independently of blocklength. A sparse-looking
+single matrix is insufficient. Retain the original presentation, the
+family parameter, and a uniform bound. Geometric locality imposes an
+additional embedding constraint; bounded check weight alone does not
+make an interaction geometrically local.
+
+Homological algebra is the general framework here. Algebraic geometry,
+expander graphs, group theory, and topology supply distinct construction
+resources. No assumption that all useful codes arise from geometric
+surfaces is required~\cite{breuckmann2021}.

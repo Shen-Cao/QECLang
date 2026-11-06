@@ -1,0 +1,69 @@
+\section{Analysis as evidence production}
+
+\subsection{Bounds, witnesses, and stopping rules}
+Exact rank and orthogonality are inexpensive compared with generic
+distance analysis. Minimum-distance computation is NP-hard even for CSS
+codes~\cite{kapshikar2023}. Therefore every potentially exponential
+analysis needs an explicit budget and a result that distinguishes a
+complete computation from an interrupted one.
+
+A witness $v$ of weight $u$ gives an upper bound after independent checks
+of zero syndrome and nontriviality in the logical quotient. Exhausting
+all supports through weight $w$ without finding a witness gives the lower
+bound $w+1$. Interrupting midway through weight $w$ only retains the
+previous complete-layer bound. Absence of a witness within a budget is
+not evidence that no logical exists.
+
+For one CSS sector and erasure support $E$, let $H$ be the detecting
+matrix and $B$ the same-sector stabilizer matrix, with $HB^T=0$. The
+supported cycle dimension is
+\begin{equation}
+ c_E=|E|-\rank H[:,E].
+\end{equation}
+The subspace of stabilizers supported in $E$ has dimension
+\begin{equation}
+ b_E=\rank B-\rank B[:,\bar E].
+\end{equation}
+Indeed, this is the kernel dimension of coordinate restriction from
+$\row B$ to $\bar E$. The number of supported logical degrees of freedom
+is $c_E-b_E$. Erasure is correctable exactly when this vanishes in both
+sectors. This rank test avoids enumerating all errors on $E$.
+
+Optimization backends can complement exhaustive search. A numerical
+integer-program optimum, an SDP relaxation, a theorem application, and a
+formally checked certificate are different evidence types. Candidate
+integer vectors must be revalidated exactly. Solver tolerance and gap
+information must survive serialization. Fixed-encoding recovery can be
+optimized with a suitable semidefinite model; jointly varying encoding
+and recovery does not thereby become a convex problem.
+
+\subsection{Decoding and experiment semantics}
+A syndrome decoder returns a correction, not a certificate that the
+actual error was corrected. Success is decided by the residual class:
+stabilizer membership for subspace codes and gauge membership for the
+protected subsystem. Minimum-weight error decoding generally differs
+from maximum-probability logical-coset decoding. Independent CSS-sector
+decoders also neglect correlations between X and Z components.
+
+Experiment records need the noise model, code and decoder versions,
+random seed, stopping rule, trial count, failure count, and confidence
+interval. Zero observed failures does not establish zero probability.
+Perfect-syndrome experiments are code-capacity experiments; circuit-level
+fault tolerance additionally depends on extraction gates, ancillas,
+measurement order, and correlated faults. A threshold requires family
+scaling, not a single small-code curve.
+
+Established simulation and decoding packages should be integrated by
+capability. Stim handles supported stabilizer circuits~\cite{gidney2021}.
+PyMatching's sparse blossom solves matching-based decoding
+problems~\cite{higgott2025}; arbitrary hypergraph syndromes require
+additional treatment. Decoder adapters should expose their assumptions
+and always permit independent syndrome and residual checks.
+
+\subsection{A multidimensional objective}
+A candidate should be evaluated by rate, relative and sector distances,
+check weight, qubit degree, decoder cost, logical failure probability,
+connectivity, ancilla count, and extraction depth. Logical gate support,
+syndrome-noise robustness, and energy-barrier or soundness properties can
+matter as much as static distance. Search should preserve a Pareto set
+rather than collapse these objectives into an unexplained score.
