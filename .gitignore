@@ -25,3 +25,18 @@ __pycache__/
 *.synctex.gz
 *.toc
 *.pdf
+
+# Python packaging, environments, and test artifacts
+*.egg-info/
+dist/
+.venv/
+.coverage
+htmlcov/
+.mypy_cache/
+.hypothesis/
+
+# Formal build products
+.lake/
+
+# Scientific experiment results
+/results/
