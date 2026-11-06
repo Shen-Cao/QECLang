@@ -1,0 +1,27 @@
+# References
+references/
+
+# IDEs
+.vscode
+
+# Generated artifacts and scratch work
+/build/
+/output/
+/tmp/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# TeX intermediates
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.pdf
