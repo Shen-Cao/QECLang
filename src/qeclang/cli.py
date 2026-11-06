@@ -1,0 +1,87 @@
+"""Command-line entry points for bounded, reproducible small-code experiments."""
+import argparse
+from dataclasses import asdict
+import json
+import sys
+
+from qeclang.analysis import css_distance, css_profile, stabilizer_distance
+from qeclang.codes import CSSCode
+from qeclang.constructions import five_qubit, shor, steane, toric
+from qeclang.decoding import simulate_css_memory
+from qeclang.experiments import bicycle_candidates
+from qeclang.io import dump, load
+
+
+def _code(args):
+    if args.input:
+        return load(args.input)
+    return {"steane": steane, "shor": shor, "five": five_qubit,
+            "toric": lambda: toric(args.size)}[args.code]()
+
+
+def _json(value):
+    print(json.dumps(value, indent=2, allow_nan=False))
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    for name in ("inspect", "distance", "export", "simulate"):
+        sub = commands.add_parser(name)
+        source = sub.add_mutually_exclusive_group()
+        source.add_argument("--code", choices=("steane", "shor", "five", "toric"), default="steane")
+        source.add_argument("--input", help="versioned code JSON")
+        sub.add_argument("--size", type=int, default=3, help="toric lattice side")
+        if name in ("distance", "simulate"):
+            sub.add_argument("--max-weight", type=int, default=3)
+            sub.add_argument("--max-candidates", type=int, default=100_000)
+        if name == "export":
+            sub.add_argument("output")
+        if name == "simulate":
+            sub.add_argument("--probability", type=float, default=0.01)
+            sub.add_argument("--trials", type=int, default=1000)
+            sub.add_argument("--seed", type=int, default=0)
+    search = commands.add_parser("search")
+    search.add_argument("--orders", nargs="+", type=int, default=[3, 3])
+    search.add_argument("--terms", type=int, default=3)
+    search.add_argument("--trials", type=int, default=10)
+    search.add_argument("--seed", type=int, default=0)
+    search.add_argument("--max-weight", type=int, default=2)
+    search.add_argument("--max-candidates", type=int, default=10_000)
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "search":
+            for record in bicycle_candidates(args.orders, terms=args.terms, trials=args.trials,
+                                              seed=args.seed, max_weight=args.max_weight,
+                                              max_candidates=args.max_candidates):
+                print(json.dumps(record, allow_nan=False))
+            return 0
+        code = _code(args)
+        if args.command == "export":
+            dump(code, args.output)
+        elif args.command == "inspect":
+            _json(asdict(css_profile(code)) if isinstance(code, CSSCode) else
+                  {"n": code.n, "k": code.k, "name": code.name})
+        elif args.command == "distance":
+            limits = {"max_weight": args.max_weight, "max_candidates": args.max_candidates}
+            if isinstance(code, CSSCode):
+                _json({sector: asdict(css_distance(code, sector, **limits)) for sector in ("x", "z")})
+            else:
+                from qeclang.codes import StabilizerCode
+                if not isinstance(code, StabilizerCode):
+                    raise ValueError("CLI distance currently supports CSS and stabilizer codes")
+                _json(asdict(stabilizer_distance(code, **limits)))
+        elif args.command == "simulate":
+            if not isinstance(code, CSSCode):
+                raise ValueError("simulation requires a CSS code")
+            _json(asdict(simulate_css_memory(code, args.probability, trials=args.trials,
+                                             seed=args.seed, max_weight=args.max_weight,
+                                             max_candidates_per_sector=args.max_candidates)))
+    except (ValueError, TypeError, OSError) as error:
+        print(f"qeclang: {error}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
