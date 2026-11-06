@@ -36,6 +36,7 @@ def test_rank_verification_needs_no_elimination(monkeypatch):
     monkeypatch.setattr(M, "rank", forbidden)
     monkeypatch.setattr(M, "solve", forbidden)
     monkeypatch.setattr(M, "row_basis", forbidden)
+    monkeypatch.setattr(M, "__matmul__", forbidden)
     assert verify_rank(matrix, certificate)
 
 

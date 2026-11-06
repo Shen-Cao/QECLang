@@ -7,7 +7,7 @@ of the implementation. All coordinate conventions match the binary code IR.
 from dataclasses import dataclass
 
 from qeclang.algebra import BinaryMatrix, vstack
-from qeclang.algebra.binary import nonnegative_integer, validate_vector
+from qeclang.algebra.binary import nonnegative_integer, set_bits, validate_vector
 from qeclang.codes import CSSCode, StabilizerCode
 
 
@@ -59,7 +59,14 @@ def verify_rank(matrix: BinaryMatrix, certificate: RankCertificate):
             or v.shape != (r, matrix.ncols) or w.shape != (r, matrix.nrows)
             or z.shape != (matrix.ncols, r)):
         return False
-    return u @ v == matrix and w @ u == BinaryMatrix.identity(r) and v @ z == BinaryMatrix.identity(r)
+    def product_row(coefficients, right):
+        value = 0
+        for j in set_bits(coefficients):
+            value ^= right.rows[j]
+        return value
+    return (all(product_row(row, v) == expected for row, expected in zip(u.rows, matrix.rows))
+            and all(product_row(row, u) == 1 << i for i, row in enumerate(w.rows))
+            and all(product_row(row, z) == 1 << i for i, row in enumerate(v.rows)))
 
 
 @dataclass(frozen=True)
@@ -136,3 +143,63 @@ def verify_stabilizer_logical(code: StabilizerCode, certificate: LogicalWitness)
     return (type(certificate.weight) is int and certificate.weight == weight
             and constraints.matvec(op) == constraints.matvec(dual) == 0
             and (_symplectic_dual(op, code.n) & dual).bit_count() % 2 == 1)
+
+
+def verify_sparse_rank(matrix, certificate: RankCertificate, *,
+                       max_bits=100_000_000, max_work=10_000_000, max_axis=100_000):
+    """Verify packed rank evidence against sparse source rows, without lowering.
+
+    Products are evaluated one row at a time; no m*n source/product matrix is
+    materialized. ``max_bits`` bounds total certificate payload, ``max_axis``
+    bounds dimensions and temporary row widths, and ``max_work`` counts row
+    visits, coefficient XORs, and support comparisons. These bounds exclude
+    Python object overhead and bigint operation costs. Invalid evidence returns
+    False; invalid limits or exhausted resource guards raise ValueError.
+    """
+    from qeclang.algebra import SparseBinaryMatrix
+    from qeclang.algebra.binary import set_bits
+    limit = nonnegative_integer(max_bits, "max_bits")
+    work_limit = nonnegative_integer(max_work, "max_work")
+    axis_limit = nonnegative_integer(max_axis, "max_axis")
+    if not isinstance(matrix, SparseBinaryMatrix) or not isinstance(certificate, RankCertificate):
+        return False
+    u, v, w, z = certificate.u, certificate.v, certificate.w, certificate.z
+    if not all(isinstance(value, BinaryMatrix) for value in (u, v, w, z)):
+        return False
+    r = u.ncols
+    if (r > min(matrix.shape) or u.shape != (matrix.nrows, r)
+            or v.shape != (r, matrix.ncols) or w.shape != (r, matrix.nrows)
+            or z.shape != (matrix.ncols, r)):
+        return False
+    if max(matrix.nrows, matrix.ncols, r) > axis_limit:
+        raise ValueError("sparse rank verification exceeds max_axis")
+    if sum(a.nrows * a.ncols for a in (u, v, w, z)) > limit:
+        raise ValueError("sparse rank certificate exceeds max_bits")
+    work = 0
+    def charge():
+        nonlocal work
+        work += 1
+        if work > work_limit:
+            raise ValueError("sparse rank verification exceeds max_work")
+    def product_row(coefficients, rows):
+        value = 0
+        charge()
+        for j in set_bits(coefficients):
+            charge()
+            value ^= rows[j]
+        return value
+    for coefficients, support in zip(u.rows, matrix.rows):
+        value = product_row(coefficients, v.rows)
+        if value.bit_count() != len(support):
+            return False
+        for j in support:
+            charge()
+            if not (value >> j) & 1:
+                return False
+    for i, coefficients in enumerate(w.rows):
+        if product_row(coefficients, u.rows) != 1 << i:
+            return False
+    for i, coefficients in enumerate(v.rows):
+        if product_row(coefficients, z.rows) != 1 << i:
+            return False
+    return True

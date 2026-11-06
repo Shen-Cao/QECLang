@@ -11,7 +11,8 @@ from .logicals import css_logicals
 class CSSLogicalFrame:
     """A complete paired logical basis and its exact sparse check presentation.
 
-    Construction is available only through ``from_packed``. Verifying just the
+    Construction uses ``from_packed`` or independently verified portable rank
+    evidence via ``import_logical_frame``. Verifying just the
     pairings would not establish completeness: an omitted logical pair could
     hide a logical failure. The factory therefore also checks the exact code
     dimension. No unvalidated field-based constructor or deserializer is exposed.
