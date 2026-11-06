@@ -2,30 +2,28 @@
 
 The initial release is a binary-qubit research foundation. Mathematical generality in the design does not imply implementation coverage. The source API and tests define the executable scope.
 
-## Implemented foundation
+## Implemented capabilities
 
-- Exact packed binary algebra and sparse support/COO storage with explicit guarded lowering, chain/CSS codes, signed stabilizers, and gauge codes with explicit or automatically chosen center sectors.
-- Hypergraph products, commuting-block/bicycle constructions, direct sums, and reference codes; sparse abelian GF(2) group-algebra elements and matrices, involution, block/tensor operations, shared lifted products, and guarded regular-representation lowering.
-- Exact logical frames, sparsity profiles, erasure tests, bounded distance search, and an optional MILP adapter whose solver evidence remains distinct from exhaustive certification.
-- Bounded exhaustive syndrome decoding, sparse normalized min-sum BP with optional guarded order-zero reliability solve, and seeded perfect-syndrome memory experiments with Wilson intervals.
-- Optional NumPy finite isometry/subsystem semantics, numerical Knill–Laflamme checks, and guarded signed-stabilizer dense lowering.
-- CSS permutations and duality, check reduction, validated chain maps, composition, and induced homology actions.
-- Versioned data-only JSON interchange, CLI entry points, and seeded bicycle candidate records.
-
-The test suite is the source of truth for supported edge cases. Dense numerical semantics is not a scalable generic-code backend; the symbolic group algebra currently covers abelian products of cyclic groups, not arbitrary noncommutative groups.
-
-## Milestones
-
-| Stage | Deliverable | Acceptance condition |
+| Layer | Available contracts | Remaining limitation |
 |---|---|---|
-| 1. Exact foundation | Binary matrices, CSS/chains, signed stabilizers, gauge parameters, structured examples, bounded distance and decoder baselines | Independent small-instance oracles; invalid-sign and zero-dimension tests; reproducible CLI examples |
-| 2. Symbolic construction layer | Finite quotient rings, typed block/product expressions, persistent construction provenance | Expansion agrees with direct construction; involution and module-action tests; size estimates before lowering |
-| 3. Analysis portfolio | MILP/SAT bounds, erasure analysis, decoder adapters, benchmark harness | Witness verification, honest timeout/gap handling, cross-backend agreement on small instances |
-| 4. Experiment layer | Noise channels, measurement schedules, Stim/detector interchange, repeated rounds | Fault propagation tests; separation of code and circuit distance; confidence intervals |
-| 5. Wider code semantics | Prime-power qudits, dense nonadditive oracle, subsystem sectors, bosonic approximations | Capability checks; exact versus approximate conversion contracts; declared truncation error |
-| 6. Proof and discovery | Lean certificate checkers, theorem-driven family analysis, constrained search agents | No unverified assumptions promoted to results; reproducible candidate artifacts and proof dependencies |
+| Code/algebra | Packed/sparse GF(2), CSS/chains, signed stabilizers, signed-sector gauge codes, validated sparse CSS | Generic exact rank can densify; efficient algorithms depend on structure |
+| Construction | Ring elements/matrices, hypergraph/lifted/bicycle products, direct sums, reference codes; bounded construction/family records and uniform locality bounds | Abelian group-ring scope; no general noncommutative action compiler |
+| Structured dimension | Odd-cyclic CRT, all-cyclic polynomial diagonalization with optional replay, odd-abelian and mixed-order abelian matrix ranks | Field/degree/component growth; pure 2-groups retain full-size components; abelian dispatch is currently through direct Python APIs |
+| Evidence | Binary rank identities, parity logical witnesses, portable presentation-bound records; certified complete logical frames importable against sparse checks | Upper-bound witnesses do not certify distance optimality |
+| Analysis/decoding | Exact logical/erasure/locality tools, bounded distance, optional numerical MILP; exhaustive/erasure/min-sum+OSD0 decoders | Generic distance remains hard; iterative logical performance is unguaranteed |
+| Experiments | Sparse perfect-syndrome simulation with certified frame and Wilson intervals; transactional SQLite random/mutation studies | Restricted search domain; no circuit-level fault model or novelty classification |
+| General semantics | Optional dense isometry/subsystem oracle and numerical Knill–Laflamme checks | Exponential storage; no general channel/recovery optimization yet |
+| Formal checking | Pinned Lean CSS syndrome/nonmembership theorem, concrete bounded literal replay | Python parsing/translation, code semantics, weight and rank proofs remain outside Lean |
 
-Stages overlap where a small implementation is useful; they are not claims that all listed features already exist. Noncommutative lifted products, production decoder integrations, bosonic operators, and a universal optimizing compiler require separate work. The native BP baseline accepts arbitrary binary checks, but neither efficient convergence nor good logical performance is guaranteed.
+The source APIs and tests define executable coverage. Exact arithmetic, independently replayable evidence, numerical solver status, and formal proof have different guarantees; one does not silently replace another.
+
+## Highest-value next research milestones
+
+1. **Distance evidence and comparative evaluation.** Combine stronger logical-witness search with construction-specific lower bounds and, where useful, proof-producing optimization. Cross-check small cases exactly and report unresolved intervals at larger sizes. Compare finalists under fixed noise/decoder settings with a mature decoder. Acceptance requires independently verified witnesses, honest budget handling, and reproducible comparisons; no general efficient distance solver is assumed.
+2. **A meaningful correction experiment beyond perfect syndrome.** Specify channels and recovery objectives first, then add measurement schedules and circuit noise where relevant. Acceptance requires trace-preserving/positivity checks or explicit instrument semantics, fixed experimental conventions, and separation of code distance from circuit distance. Dense recovery optimization and circuit simulation are distinct capabilities.
+3. **Theorem-aware family search.** Extend the existing study engine only where a construction grammar, mathematical bound, or useful equivalence reduction supplies an advantage. Preserve proof hypotheses and benchmark random/local/agent proposals at equal budgets. Acceptance is reproducible improvement on held-out instances or a proved family claim, rather than more generated candidates.
+
+Noncommutative actions, prime-power qudits, bosonic approximations, and dynamical codes should follow a concrete question requiring them. A general optimizing compiler or GPU backend needs a measured bottleneck and stable transformation contracts first.
 
 ## Immediate research questions
 
@@ -52,6 +50,6 @@ Performance results should be generated into ignored output directories. Commit 
 
 ## Formalization boundary
 
-Start with the theorem that orthogonal CSS checks define a chain complex, rank/nullity quotient dimensions, the two-block commutation identity, and witness validation. Prove executable checkers correct before attempting ambitious asymptotic distance theorems. Export small certificates that a separately versioned checker can replay. A Lean project should pin its toolchain and dependencies; it must not rely on a developer's global installation.
+The current Lean project proves the CSS parity-witness checker and replays concrete literals. Next proof targets are faithful parsing/translation, physical weight, rank-certificate identities, and selected construction identities; asymptotic distance theorems require their own hypotheses and mathematical development. Keep toolchains pinned and certificates replayable independently of their producer.
 
 A proved abstract identity does not automatically verify Python parsing, bit ordering, serialization, or a numerical solver. State the trusted boundary explicitly and test the translation between representations.

@@ -53,11 +53,27 @@ Dimension must be computed over the expanded binary checks or with a specialized
 
 For each seed, weight an entry by its monomial support size. X-check weights are row sums of A plus column sums of B, and Z-check weights are column sums of A plus row sums of B. Qubit participation uses column sums from both seeds on the variable block, and row sums from both seeds on the check block. Uniformly bounded weighted row/column sums therefore control locality independently of lift size.
 
+## Exact structured dimension without full binary expansion
+
+For odd cyclic order `L`, write `f=x^L+1=∏ f_i` over GF(2), with distinct irreducible factors of degrees `d_i`. The Chinese remainder theorem decomposes `R=GF(2)[x]/f` into fields. For a ring matrix `M`, its binary regular-action rank is `Σ d_i rank_(GF(2^d_i))(M mod f_i)`. The implementation verifies irreducibility and the factor product, then performs exact component elimination. For an odd abelian product, it evaluates characters in a verified splitting field, computes one rank per Frobenius orbit, and weights that rank by the orbit length. These methods compute dimension; the change of basis does not preserve physical Hamming weight. [Panteleev–Kalachev, Appendices A–B](https://arxiv.org/html/2012.04068#A2).
+
+The cyclic polynomial backend also handles even `L`. Elementary polynomial row/column operations give a diagonal matrix with entries `a_j` and remain invertible modulo `f`. A scalar multiplication map `h ↦ a_j h mod f` has kernel dimension `deg gcd(a_j,f)`: writing `a_j=g a'` and `f=g f'` with coprime `a',f'`, its kernel consists exactly of multiples of `f'` modulo `f`. Thus binary rank is `Σ_j (L-deg gcd(a_j,f))`, including zero diagonal entries. This derivation needs no square-free assumption or ordered Smith divisibility chain. Recorded elementary operations can be replayed and the final gcd contributions rechecked independently. Unimodular polynomial basis transformations are standard module operations; [Sage's polynomial-matrix reference](https://doc.sagemath.org/html/en/reference/matrices/sage/matrix/matrix_polynomial_dense.html) describes their role.
+
+For mixed-order abelian groups, write each order as `L_i=p_i o_i`, where `p_i` is a power of two and `o_i` is odd. The group isomorphism `C_(L_i) ≅ C_(p_i) × C_(o_i)` permits character decomposition of the odd subgroup while retaining the regular action of the 2-primary subgroup over the splitting field. For `P=∏ p_i`, an `m × n` seed gives component matrices of shape `mP × nP`; their ranks are weighted by odd-character orbit lengths. Pure 2-groups require full-size components, and their repeated-root structure is never treated as a field decomposition.
+
+The matrix-level APIs are `symbolic.abelian_analysis.abelian_rank` for odd factors and `symbolic.mixed_abelian.abelian_rank_mixed` for arbitrary factors. They return exact computational results and component metadata, not standalone replay certificates. The construction-level `analyze_lifted` dispatcher and CLI currently expose only the cyclic CRT, cyclic polynomial, and explicit packed backends; abelian matrix analysis is selected directly through these Python APIs.
+
+Factor degree, arithmetic steps, seed entries, intermediate polynomial degree, trace length, character count, splitting-field degree, and mixed component dimensions have separate budgets. Polynomial degree growth or field/root searches can exhaust a budget even when binary expansion would be small. No backend silently substitutes for another, and a partial computation is not reported as a rank. Work counts are deterministic arithmetic proxies, not elapsed-time or total-memory bounds.
+
+Cyclic Laurent families keep exponents independent of `L`; collisions after reduction modulo `L` can only reduce incidence counts, supplying uniform locality bounds. Exact finite-instance ranks and sampled dimensions are useful for formulating a family theorem, but do not themselves prove uniform rate or distance growth. Construction manifests and fingerprints retain hypotheses and physical order without claiming novelty.
+
 ## Analysis must return evidence
 
 Rank, orthogonality, quotient bases, and finite-instance sparsity are exact algebraic computations. In contrast, general stabilizer and CSS minimum-distance computation is NP-hard. A universal representation cannot make every analysis efficient. [Kapshikar and Kundu](https://arxiv.org/abs/2203.04262).
 
 A distance routine should return an interval plus evidence. Exhausting every candidate of weight below `w` certifies a lower bound `w`; finding a nontrivial logical of weight `u` certifies an upper bound `u`. A budget interruption inside a layer does not certify that layer. Logical witnesses must be checked independently for syndrome zero and non-membership in the stabilizer/gauge equivalence space. A timeout never means that distance is infinite.
+
+Portable complete logical frames allow sparse perfect-syndrome simulation to test residual logical class without repeated elimination. Frame import checks rank evidence, logical commutation, and identity X/Z pairing against the exact source presentation. This verifies completeness algebraically; it does not validate the decoder or noise assumptions.
 
 For CSS erasure on a known support `E`, restrict the opposite check matrix to `E`. A nonzero quotient between supported cycles and supported stabilizers signals uncorrectable erasure. This permits exact rank tests without enumerating all Pauli errors. Unknown-location adversarial correction instead requires `2t < d`.
 
@@ -98,5 +114,7 @@ The native `BPDecoder` is a bounded normalized min-sum baseline with reusable sp
 5. Spend decoding and circuit-simulation budgets on the surviving Pareto set.
 6. Preserve construction parameters, source revision, solver versions, random seeds, bounds, and reason for stopping.
 7. Promote a numerical pattern to a conjecture, then state and prove the needed family hypotheses separately.
+
+The implemented SQLite study engine covers fixed-term scalar cyclic seeds with deterministic random sampling or greedy mutations, transactional resumption, and provenance-bound caching. It ranks eligible instances by exact logical dimension and conservative distance lower bounds together with locality; witness upper bounds never stand in for achieved distance. Its frontier construction and history queries target modest bounded studies.
 
 An LLM can propose structured expressions and proof strategies. It must not be the authority for validity, novelty, distance, or experimental success. Searching within valid constructions removes a large invalid search space; it does not eliminate difficult optimization or bias from the chosen family.
