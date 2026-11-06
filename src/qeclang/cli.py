@@ -26,6 +26,8 @@ def _json(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+    from qeclang import cli_structured
+    cli_structured.register(commands)
     for name in ("inspect", "distance", "export", "simulate"):
         sub = commands.add_parser(name)
         source = sub.add_mutually_exclusive_group()
@@ -54,6 +56,9 @@ def main(argv=None):
     search.add_argument("--max-candidates", type=int, default=10_000)
     args = parser.parse_args(argv)
     try:
+        if args.command in ("family", "construction"):
+            _json(cli_structured.run(args))
+            return 0
         if args.command == "search":
             for record in bicycle_candidates(args.orders, terms=args.terms, trials=args.trials,
                                               seed=args.seed, max_weight=args.max_weight,
