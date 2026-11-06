@@ -1,0 +1,10 @@
+name = "qeclang_formal"
+version = "0.1.0"
+defaultTargets = ["QECLang", "certificate_fixtures"]
+
+[[lean_lib]]
+name = "QECLang"
+
+[[lean_exe]]
+name = "certificate_fixtures"
+root = "Main"
