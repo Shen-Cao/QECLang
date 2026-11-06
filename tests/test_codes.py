@@ -18,6 +18,7 @@ def test_pauli_phase_convention():
     assert Pauli.from_label("IX").x == 2
     assert Pauli.from_label("XYZ").weight == 3
     assert not Pauli(1, 1).is_hermitian
+    assert Pauli(1, 1, -1) == Pauli(1, 1, 3)
 
 
 def test_signed_dependent_stabilizers():

@@ -1,6 +1,7 @@
 """Phase-aware qubit Pauli operators."""
 
 from dataclasses import dataclass
+from numbers import Integral
 
 from qeclang.algebra.binary import nonnegative_integer
 
@@ -21,7 +22,9 @@ class Pauli:
     def __post_init__(self) -> None:
         object.__setattr__(self, "x", nonnegative_integer(self.x, "x"))
         object.__setattr__(self, "z", nonnegative_integer(self.z, "z"))
-        object.__setattr__(self, "phase", nonnegative_integer(self.phase, "phase") % 4)
+        if isinstance(self.phase, bool) or not isinstance(self.phase, Integral):
+            raise ValueError("phase must be an integer")
+        object.__setattr__(self, "phase", int(self.phase) % 4)
 
     @property
     def weight(self) -> int:
