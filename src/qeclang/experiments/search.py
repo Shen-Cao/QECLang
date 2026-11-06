@@ -7,6 +7,7 @@ from random import Random
 from qeclang import __version__
 from qeclang.analysis import css_distance, css_profile
 from qeclang.analysis.distance import _limits
+from qeclang.algebra.binary import nonnegative_integer
 from qeclang.constructions import bicycle
 from qeclang.io import to_dict
 from qeclang.symbolic import GroupAlgebraElement
@@ -22,6 +23,7 @@ def bicycle_candidates(orders=(3, 3), *, terms=3, trials=10, seed=0,
     not a proof of optimality or an autonomous theorem prover.
     """
     orders = tuple(orders)
+    max_bits = nonnegative_integer(max_bits, "max_bits")
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
     if not orders or any(type(o) is not int or o < 1 for o in orders):

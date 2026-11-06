@@ -52,6 +52,14 @@ def test_invalid_limits(tmp_path):
         load(tmp_path / "missing", max_bytes=-2)
     with pytest.raises(TypeError):
         to_dict(object())
-    for options in ({"seed": None}, {"max_candidates": -1}, {"max_weight": -1}):
+    for options in ({"seed": None}, {"max_candidates": -1}, {"max_weight": -1},
+                    {"max_bits": float("nan")}, {"max_bits": -1}):
         with pytest.raises(ValueError):
             list(bicycle_candidates(trials=0, **options))
+
+
+def test_validation_product_budget():
+    data = {"schema": "qeclang.code.v1", "kind": "css", "n": 0,
+            "hx": [[]] * 20, "hz": [[]] * 20}
+    with pytest.raises(ValueError, match="validation product"):
+        from_dict(data, max_bits=100)

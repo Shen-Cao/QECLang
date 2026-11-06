@@ -82,8 +82,11 @@ def from_dict(data, *, max_qubits=100_000, max_checks=100_000, max_bits=100_000_
         return value
 
     if kind == "css":
-        return CSSCode(BinaryMatrix(tuple(map(word, rows("hx"))), n),
-                       BinaryMatrix(tuple(map(word, rows("hz"))), n), name=name)
+        hx, hz = rows("hx"), rows("hz")
+        if (len(hx) + len(hz)) * n + len(hx) * len(hz) > max_bits:
+            raise ValueError("CSS checks and validation product exceed max_bits")
+        return CSSCode(BinaryMatrix(tuple(map(word, hx)), n),
+                       BinaryMatrix(tuple(map(word, hz)), n), name=name)
     if kind not in ("stabilizer", "subsystem"):
         raise ValueError("unsupported code kind")
     def pauli(p):
