@@ -45,6 +45,15 @@ protected subsystem. Minimum-weight error decoding generally differs
 from maximum-probability logical-coset decoding. Independent CSS-sector
 decoders also neglect correlations between X and Z components.
 
+The native normalized min-sum baseline uses bounded iterations and
+accepts only corrections whose exact syndrome matches the input. Its
+optional order-zero post-processing retains reliable hard decisions and
+solves remaining corrections by reliability-ordered elimination. This is
+inspired by the established BP/OSD approach~\cite{roffe2020}; it supplies
+neither an optimality guarantee nor a full higher-order OSD search.
+Message updates use sparse edges; full iterations additionally scan
+variables and checks. Packed fallback costs are guarded separately.
+
 Experiment records need the noise model, code and decoder versions,
 random seed, stopping rule, trial count, failure count, and confidence
 interval. Zero observed failures does not establish zero probability.

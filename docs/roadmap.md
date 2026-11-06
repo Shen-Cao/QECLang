@@ -4,10 +4,10 @@ The initial release is a binary-qubit research foundation. Mathematical generali
 
 ## Implemented foundation
 
-- Exact packed binary algebra, chain/CSS codes, signed stabilizers, and gauge codes with explicit or automatically chosen center sectors.
-- Hypergraph products, commuting-block/bicycle constructions, direct sums, and reference codes; sparse abelian GF(2) group-algebra multiplication, involution, and guarded regular-representation lowering.
+- Exact packed binary algebra and sparse support/COO storage with explicit guarded lowering, chain/CSS codes, signed stabilizers, and gauge codes with explicit or automatically chosen center sectors.
+- Hypergraph products, commuting-block/bicycle constructions, direct sums, and reference codes; sparse abelian GF(2) group-algebra elements and matrices, involution, block/tensor operations, shared lifted products, and guarded regular-representation lowering.
 - Exact logical frames, sparsity profiles, erasure tests, bounded distance search, and an optional MILP adapter whose solver evidence remains distinct from exhaustive certification.
-- Bounded syndrome decoding and seeded perfect-syndrome memory experiments with Wilson intervals.
+- Bounded exhaustive syndrome decoding, sparse normalized min-sum BP with optional guarded order-zero reliability solve, and seeded perfect-syndrome memory experiments with Wilson intervals.
 - Optional NumPy finite isometry/subsystem semantics, numerical Knill–Laflamme checks, and guarded signed-stabilizer dense lowering.
 - CSS permutations and duality, check reduction, validated chain maps, composition, and induced homology actions.
 - Versioned data-only JSON interchange, CLI entry points, and seeded bicycle candidate records.
@@ -25,7 +25,7 @@ The test suite is the source of truth for supported edge cases. Dense numerical 
 | 5. Wider code semantics | Prime-power qudits, dense nonadditive oracle, subsystem sectors, bosonic approximations | Capability checks; exact versus approximate conversion contracts; declared truncation error |
 | 6. Proof and discovery | Lean certificate checkers, theorem-driven family analysis, constrained search agents | No unverified assumptions promoted to results; reproducible candidate artifacts and proof dependencies |
 
-Stages overlap where a small implementation is useful; they are not claims that all listed features already exist. Noncommutative lifted products, arbitrary qLDPC decoders, bosonic operators, and a universal optimizing compiler require separate work.
+Stages overlap where a small implementation is useful; they are not claims that all listed features already exist. Noncommutative lifted products, production decoder integrations, bosonic operators, and a universal optimizing compiler require separate work. The native BP baseline accepts arbitrary binary checks, but neither efficient convergence nor good logical performance is guaranteed.
 
 ## Immediate research questions
 

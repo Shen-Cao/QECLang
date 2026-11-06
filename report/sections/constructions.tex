@@ -38,6 +38,28 @@ structure, and asymptotically good qLDPC families are already known
 \cite{panteleev2022}. Merely validating commutation does not reproduce
 their distance proofs.
 
+\subsection{A shared abelian lift}
+For $A\in R^{m_A\times n_A}$ and $B\in R^{m_B\times n_B}$,
+$R=\F[G]$ with $G$ finite abelian, let star combine matrix transpose
+and inversion of group monomials. Define
+\begin{align}
+ H_X&=[A\otimes I_{n_B}\mid I_{m_A}\otimes B^*],\\
+ H_Z&=[I_{n_A}\otimes B\mid A^*\otimes I_{m_B}].
+\end{align}
+This uses the lifted-product convention of~\cite[Section III-D]{panteleev2021}
+with its second seed replaced by $B^*$. Commutativity gives
+$H_XH_Z^*=A\otimes B^*+A\otimes B^*=0$. Regular representation
+preserves products and sends star to binary transpose, proving CSS
+validity after expansion.
+
+For $L=|G|$, the length is $L(n_An_B+m_Am_B)$; independently expanding
+both seeds before taking an ordinary hypergraph product instead costs
+$L^2(n_An_B+m_Am_B)$ qubits. No generic field-rank dimension formula is
+assumed over this ring. Uniform bounds on seed row and column sums of
+monomial support sizes control expanded locality. General noncommutative
+extensions require compatible commuting actions and are outside this
+construction's scope.
+
 \subsection{Families and locality}
 A qLDPC claim concerns a family with generator weight and participation
 per physical qubit bounded independently of blocklength. A sparse-looking

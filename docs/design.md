@@ -61,13 +61,13 @@ A future uniform lowering result should include source and target fingerprints, 
 
 ## Technology decision
 
-Start with an inspectable Python library and exact binary arithmetic. Packed integer rows implement XOR, parity, and elimination without floating-point rank errors. They are a compact reference backend with machine-word parallelism, not a claim of optimal large sparse linear algebra. Sparse input can become dense during elimination; transposition and Kronecker expansion can dominate memory. Performance work must measure that boundary.
+Start with an inspectable Python library and exact binary arithmetic. Packed integer rows implement XOR, parity, and elimination without floating-point rank errors. They are a compact reference backend with machine-word parallelism, not a claim of optimal large sparse linear algebra. Sparse input can become dense during elimination; transposition and Kronecker expansion can dominate memory. Performance work must measure that boundary. `SparseBinaryMatrix` separately stores sorted support rows with O(rows + nonzeros) index storage; COO duplicate entries cancel over GF(2). Sparse syndrome products and decoder adjacency use this representation directly. Exact rank still requires explicit guarded packed lowering; sparse storage is not a sparse-rank algorithm.
 
-The implemented symbolic layer retains sparse monomial support for the GF(2) group algebra of finite products of cyclic groups, with exact addition, multiplication, involution, and guarded regular-representation expansion. A general typed construction-expression DAG remains future work. Noncommutative rings need explicit left/right module actions and an involution; ordinary commutative polynomial multiplication is insufficient for general lifted products.
+The implemented symbolic layer retains sparse monomial support for the GF(2) group algebra of finite products of cyclic groups, with exact addition, multiplication, involution, ring matrices, block/Kronecker operations, and guarded regular-representation expansion. The commutative lifted product shares one group coordinate across the factors. A general typed construction-expression DAG remains future work. Noncommutative rings need explicit left/right module actions and an involution; ordinary commutative polynomial multiplication is insufficient for general lifted products.
 
 | Candidate | Decision | Reason |
 |---|---|---|
-| Python + packed GF(2) | Core | Exact, easy to inspect, portable, suitable reference oracle |
+| Python + sparse/packed GF(2) | Core | Exact support and packed backends with explicit conversion; suitable reference oracle |
 | NumPy/SciPy | Optional analysis/backend | Numerical operators, sparse interchange, optimization; ordinary floating rank is not binary rank |
 | SageMath/GAP | Optional symbolic adapter | Finite fields, groups, modules, polynomial quotients; avoid a mandatory heavyweight runtime |
 | Rust/C++ with packed sparse/dense kernels | Profile-driven extension | Accelerate elimination and batches without changing semantics |

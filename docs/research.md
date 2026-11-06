@@ -38,6 +38,21 @@ For commuting square matrices `A,B`, the two-block construction `Hx=[A|B]`, `Hz=
 
 Lifted products generalize these operations using algebraic symmetry. Asymptotically good qLDPC families already exist: constant rate and distance proportional to length are achievable together. The research goal is therefore better usable constructions, constants, decoders, and proof automation, not merely resolving that existence question. [Panteleev and Kalachev](https://arxiv.org/abs/2111.03654).
 
+## Lifted products over an abelian group algebra
+
+Let `A` and `B` have shapes `ma × na` and `mb × nb` over `R = GF(2)[G]`, for a finite abelian group of order `L`. Here `M*` means transpose combined with inversion of every group monomial. The shared-lift construction is
+
+```text
+Hx = [ A ⊗ I_nb | I_ma ⊗ B* ]
+Hz = [ I_na ⊗ B | A* ⊗ I_mb ].
+```
+
+This is [Panteleev–Kalachev, §III-D, equation (12)](https://arxiv.org/html/2012.04068#S3.SS4) with their second seed replaced by `B*`. The ring identity `Hx Hz* = 0` lowers to binary orthogonality because the regular representation preserves multiplication and sends star to transpose. The length is `L(na nb + ma mb)`. Taking the ordinary hypergraph product **after** expanding both seeds instead gives `L²(na nb + ma mb)`; these are different constructions.
+
+Dimension must be computed over the expanded binary checks or with a specialized module theorem. The field-based hypergraph-product dimension formula does not transfer to a ring with zero divisors. Noncommutative groups require compatible commuting actions; this implementation's abelian restriction supplies the needed commutation automatically.
+
+For each seed, weight an entry by its monomial support size. X-check weights are row sums of A plus column sums of B, and Z-check weights are column sums of A plus row sums of B. Qubit participation uses column sums from both seeds on the variable block, and row sums from both seeds on the check block. Uniformly bounded weighted row/column sums therefore control locality independently of lift size.
+
 ## Analysis must return evidence
 
 Rank, orthogonality, quotient bases, and finite-instance sparsity are exact algebraic computations. In contrast, general stabilizer and CSS minimum-distance computation is NP-hard. A universal representation cannot make every analysis efficient. [Kapshikar and Kundu](https://arxiv.org/abs/2203.04262).
@@ -71,6 +86,8 @@ A threshold is a scaling claim about an explicit family, noise model, measuremen
 ## Integrate established tools by capability
 
 Use Stim for supported stabilizer-circuit simulation and detector models, not as an arbitrary-code semantic engine. Use PyMatching when a decoding model admits the appropriate graph representation; generic qLDPC syndrome hyperedges do not automatically become matching instances. Evaluate `ldpc` BP+OSD/BP+LSD for broader binary syndrome problems, retaining a trusted residual verifier. [Stim](https://arxiv.org/abs/2103.02202), [Sparse Blossom/PyMatching](https://arxiv.org/abs/2303.15933), [`ldpc` documentation](https://software.roffe.eu/ldpc/).
+
+The native `BPDecoder` is a bounded normalized min-sum baseline with reusable sparse adjacency, damping, and clipped log-likelihood ratios. Edge-message updates cost O(nonzeros); a full iteration also scans variables/checks. Exact syndrome agreement determines its `success` flag, which does **not** establish logical correction. Optional `osd0` performs a reliability-ordered binary solve after BP fails, with an explicit packed-payload guard. The fallback is neither a minimum-weight search nor a degenerate maximum-likelihood decoder. The CSS wrapper uses marginal X/Z error probabilities and ignores their correlations. BP with ordered-statistics post-processing is an established research direction; this small reference implementation does not claim the full performance of mature implementations. [Panteleev and Kalachev](https://arxiv.org/abs/1904.02703), [Roffe et al.](https://arxiv.org/abs/2005.07016).
 
 ## Search protocol
 

@@ -9,6 +9,12 @@ floating-point rank. `nullspace()` returns a matrix whose **rows** form a right
 kernel basis; `solve(rhs)` returns one solution with free coordinates zero and
 raises `ValueError` if inconsistent. Rank and row-space elimination are cached.
 
+`SparseBinaryMatrix` uses immutable sorted support rows. Repeated support
+indices are rejected; `from_coo` deliberately cancels duplicate binary entries
+over GF(2). `matvec_bits` operates on binary sequences, avoiding large-integer
+bit access. `to_packed(max_bits=...)` is an explicit budgeted boundary before
+elimination. Optional SciPy interchange rejects nonbinary or floating entries.
+
 `CSSCode(hx, hz)` requires `hx @ hz.T == 0`. All listed X and Z generators have
 positive signs. Redundant and zero checks are allowed and retained, so syndrome
 lengths refer to the supplied presentation. The chain convention is
@@ -43,6 +49,26 @@ representation; it does not model noncommutative rings.
 `bicycle(a,b)` uses `[A B]` and `[B.T A.T]`; abelian multiplication guarantees
 commutation. `max_bits` limits the worst-case packed output payload before
 expansion, excluding Python overhead and temporary arrays.
+
+`GroupAlgebraMatrix(rows, ncols, orders)` retains ring-valued blocks.
+`adjoint()` transposes blocks and applies the monomial involution.
+`LiftedProduct(a,b)` retains its seeds and constructs
+`Hx=[a tensor I | I tensor b.adjoint()]` and
+`Hz=[I tensor b | a.adjoint() tensor I]`. For group order `L`, its length is
+`L*(n_a*n_b + m_a*m_b)`, using a shared lift rather than the `L**2` expansion
+of an ordinary product of already-lifted matrices. `locality()` gives exact
+expanded incidence statistics without expansion. The ring has zero divisors;
+the field rank formula cannot be reused to infer its logical count.
+`sparse_checks()` returns the two sparse check matrices directly, under site,
+nonzero, and symbolic-block budgets. Scalar and block group-algebra elements
+also support `lower_sparse()` without packed intermediate matrices.
+
+`permute_qubits(code, permutation)` maps old site `i` to `permutation[i]`.
+`hadamard_dual` exchanges X/Z sectors. `independent_checks` preserves the code
+but can change generator locality. `ChainMap(source,target,f0,f1,f2)` validates
+both commuting squares. Its `homology_action(degree)` is a target-by-source
+matrix in deterministic `homology_basis` coordinates. A quasi-isomorphism
+preserves abstract homology, and need not preserve physical weight or code size.
 
 ## Analysis results
 
@@ -87,6 +113,18 @@ syndromes were matched. Use `css_logical_success` to check that a correction's
 residual is a stabilizer. Minimum individual error weight is not maximum
 likelihood over quantum logical cosets, and independent sectors discard X/Z
 correlations in depolarizing noise.
+
+`erasure_decode` solves a syndrome restricted to specified sites.
+`css_erasure_decode` returns consistent sector corrections and a separate
+`region_correctable` flag: a consistent solution on an uncorrectable region
+does not guarantee recovery. Stabilizer degeneracy permits many valid
+corrections even when the region is correctable.
+
+`BPDecoder` and `CSSBPDecoder` reuse sparse adjacency graphs. Normalized min-sum
+updates have bounded iterations, damping and finite LLR saturation. Optional
+`fallback="osd0"` runs a reliability-ordered exact solve under a packed-memory
+guard. `converged` and `osd0` certify only syndrome consistency; neither
+certifies the logical class. See [decoder contracts](decoding.md).
 
 `simulate_css_memory` draws IID per-site I/X/Y/Z with probabilities
 `1-p,p/3,p/3,p/3`. It uses perfect syndromes and one correction cycle. Counts

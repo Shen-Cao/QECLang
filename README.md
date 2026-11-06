@@ -25,6 +25,7 @@ python -m ruff check .
 qeclang inspect --code steane
 qeclang distance --code five --max-weight 3
 qeclang simulate --code steane --probability 0.01 --trials 1000 --seed 7
+qeclang simulate --code toric --size 5 --decoder bp-osd0 --trials 100 --seed 7
 ```
 
 Use `pip install -e .` for the core alone, or `pip install -e '.[numeric]'` for
@@ -48,12 +49,13 @@ print(css_distance(code, "x", max_weight=3, max_candidates=100_000))
 
 | Layer | Available functionality |
 |---|---|
-| Exact algebra | Immutable packed GF(2) matrices; rank, kernel, solve, products and block operations |
+| Exact algebra | Immutable packed and sparse GF(2) matrices; exact packed rank, kernel, solve, products; guarded conversions and optional SciPy interchange |
 | Code representations | CSS, based three-term complexes, signed Pauli stabilizers, subsystem gauge modules with optional signed center sectors |
-| Symbolic constructions | Sparse finite abelian group algebra, exact multiplication/involution and regular-representation lowering |
-| Code families | Hypergraph products, abelian bicycle codes, direct sums, toric and Bacon–Shor families; Steane, Shor and five-qubit fixtures |
+| Symbolic constructions | Finite abelian group algebra and block matrices, multiplication/adjoints, regular-representation lowering, symbolic locality |
+| Code families | Hypergraph and commutative lifted products, abelian bicycle codes, direct sums, toric and Bacon–Shor families; Steane, Shor and five-qubit fixtures |
+| Transformations | Physical permutations, Hadamard duality, check reduction, chain maps, induced homology and quasi-isomorphism checks |
 | Analysis | Logical frames, rank/rate/locality, known-location erasure tests, bounded exact CSS/stabilizer/subsystem distance; optional MILP |
-| Decoding | Bounded minimum-weight syndrome decoder, independent CSS sectors, perfect-syndrome depolarizing memory simulation |
+| Decoding | Bounded minimum-weight and erasure decoders; sparse min-sum BP with optional order-zero reliability fallback; independent CSS sectors and perfect-syndrome simulation |
 | General semantics | Optional dense subspace/subsystem isometries, numerical Knill–Laflamme checks, stabilizer-to-isometry lowering |
 | Experiments | Versioned data-only JSON, CLI, seeded structured candidate generation and timing scripts |
 
@@ -79,8 +81,13 @@ qeclang export --code steane results/steane.json
 qeclang inspect --input results/steane.json
 qeclang search --orders 3 3 --terms 3 --trials 10 --seed 7 > results/search.jsonl
 python scripts/benchmark.py --sizes 3 5 10 20 > results/benchmark.jsonl
+python scripts/benchmark_sparse.py --size 1000 --degree 3 > results/sparse.jsonl
 python examples/structured_codes.py
+python examples/sparse_lifted.py
 ```
+
+See [decoding methods](docs/decoding.md) for iterative decoder assumptions and
+the distinction between syndrome convergence and logical success.
 
 Candidate records include construction parameters, seed, code, algorithm
 budgets, bound statuses and witnesses. These are candidates, not automatically

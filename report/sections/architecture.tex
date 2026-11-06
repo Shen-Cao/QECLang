@@ -1,7 +1,9 @@
 \section{Architecture and research milestones}
 
 The implementation starts with immutable Python values and exact packed
-binary rows. Bitwise XOR and parity give an inspectable reference backend.
+binary rows, plus a sparse support-row representation with explicit guarded
+packed lowering. Sparse storage does not make exact elimination sparse.
+Bitwise XOR and parity give an inspectable reference backend.
 This does not imply optimal sparse asymptotics: elimination can fill in,
 and expanding structured lifts can dominate memory. Profiling should
 separate construction, expansion, validation, rank, distance, and decoding.
@@ -15,7 +17,10 @@ preservation of physical weight or sparse measurement scheduling.
 The executable scope includes binary matrices, chain/CSS objects, signed
 stabilizer validation, subsystem modules with signed center sectors,
 structured finite constructions, and bounded analysis/decoder baselines.
-Sparse abelian group-algebra operations lower to regular representations.
+Sparse abelian group-algebra elements and matrices support shared lifted
+products before regular-representation expansion. A normalized min-sum
+decoder reuses sparse adjacency; optional reliability-ordered order-zero
+post-processing is separately resource guarded.
 Optional NumPy semantics checks finite isometries and operator
 Knill--Laflamme residuals; signed stabilizers can be lowered with an explicit
 dimension guard. Optional MILP analysis keeps solver evidence distinct

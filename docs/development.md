@@ -26,7 +26,7 @@ pass the same invariant checks before timing comparisons are meaningful.
 ## Report
 
 The report sources are split across `report/sections/` and use public references
-in `report/references.bib`. Build in an ignored directory using a TeX distribution
+in `report/bibliography.bib`. Build in an ignored directory using a TeX distribution
 with pdfLaTeX and BibTeX; see `report/README.md` for the commands. Do not commit
 PDFs, auxiliary files, or downloaded papers. This report is a design and research
 foundation, not a claim that every proposed dialect is implemented.
