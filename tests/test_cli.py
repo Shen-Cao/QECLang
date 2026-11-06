@@ -20,3 +20,14 @@ def test_commands(capsys, tmp_path):
     assert "min_sum" in json.loads(capsys.readouterr().out)["decoder_name"]
     assert main(["distance", "--max-weight", "-1"]) == 2
     assert "max_weight" in capsys.readouterr().err
+
+
+def test_study_commands(capsys, tmp_path):
+    database = str(tmp_path / "study.sqlite3")
+    arguments = ["study", database, "--lift", "3", "--terms", "2", "--seed", "7"]
+    assert main(arguments + ["--trials", "2"]) == 0
+    assert json.loads(capsys.readouterr().out)["trials"] == 2
+    assert main(arguments + ["--trials", "4"]) == 0
+    assert json.loads(capsys.readouterr().out)["trials"] == 4
+    assert main(["study-results", database]) == 0
+    assert json.loads(capsys.readouterr().out)["trials"] == 4

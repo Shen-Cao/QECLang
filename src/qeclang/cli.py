@@ -2,6 +2,7 @@
 import argparse
 from dataclasses import asdict
 import json
+import sqlite3
 import sys
 
 from qeclang.analysis import css_distance, css_profile, stabilizer_distance
@@ -26,8 +27,9 @@ def _json(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    from qeclang import cli_structured
+    from qeclang import cli_structured, cli_study
     cli_structured.register(commands)
+    cli_study.register(commands)
     for name in ("inspect", "distance", "export", "simulate"):
         sub = commands.add_parser(name)
         source = sub.add_mutually_exclusive_group()
@@ -56,6 +58,9 @@ def main(argv=None):
     search.add_argument("--max-candidates", type=int, default=10_000)
     args = parser.parse_args(argv)
     try:
+        if args.command in ("study", "study-results"):
+            _json(cli_study.run(args))
+            return 0
         if args.command in ("family", "construction"):
             _json(cli_structured.run(args))
             return 0
@@ -95,7 +100,7 @@ def main(argv=None):
                                              seed=args.seed, max_weight=args.max_weight,
                                              max_candidates_per_sector=args.max_candidates,
                                              decoder=decoder)))
-    except (ValueError, TypeError, OSError) as error:
+    except (ValueError, TypeError, OSError, sqlite3.Error) as error:
         print(f"qeclang: {error}", file=sys.stderr)
         return 2
     return 0
