@@ -13,7 +13,7 @@ from typing import Literal
 
 from qeclang.algebra import BinaryMatrix
 from qeclang.algebra.binary import set_bits
-from qeclang.codes import CSSCode
+from qeclang.codes import CSSCode, SparseCSSCode
 
 
 @dataclass(frozen=True)
@@ -225,9 +225,10 @@ class CSSBPDecoder:
     p_Z+p_Y for the Z component. Correlations between components are ignored.
     ``decode(sx, sz)`` uses sx=Hx z and sz=Hz x.
     """
-    def __init__(self, code: CSSCode, x_probabilities=0.1, z_probabilities=0.1, **options):
-        if not isinstance(code, CSSCode):
-            raise TypeError("CSSBPDecoder requires a CSSCode")
+    def __init__(self, code: CSSCode | SparseCSSCode, x_probabilities=0.1,
+                 z_probabilities=0.1, **options):
+        if not isinstance(code, (CSSCode, SparseCSSCode)):
+            raise TypeError("CSSBPDecoder requires a CSSCode or SparseCSSCode")
         self.code = code
         self.x = BPDecoder(code.hz, x_probabilities, **options)
         self.z = BPDecoder(code.hx, z_probabilities, **options)

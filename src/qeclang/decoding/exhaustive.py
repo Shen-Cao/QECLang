@@ -60,6 +60,9 @@ def css_decode(code: CSSCode, sx: int, sz: int, *,
 
     Independent sectors ignore X/Z correlations under depolarizing noise.
     """
+    if not isinstance(code, CSSCode):
+        raise TypeError("exact CSS decoding requires CSSCode; explicitly lower sparse codes "
+                        "with to_packed(max_bits=...)")
     return CSSDecodeResult(
         minimum_weight_decode(code.hz, sz, max_weight=max_weight,
                               max_candidates=max_candidates_per_sector),
@@ -70,6 +73,9 @@ def css_decode(code: CSSCode, sx: int, sz: int, *,
 def css_logical_success(code: CSSCode, x_error: int, z_error: int,
                         correction: CSSDecodeResult) -> bool:
     """A perfect-syndrome correction succeeds iff its residual is a stabilizer."""
+    if not isinstance(code, CSSCode):
+        raise TypeError("exact logical success requires CSSCode; explicitly lower sparse codes "
+                        "with to_packed(max_bits=...)")
     for v in (x_error, z_error):
         if type(v) is not int or not 0 <= v < (1 << code.n):
             raise ValueError("error must fit the code block")

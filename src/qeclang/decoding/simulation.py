@@ -5,7 +5,8 @@ from math import sqrt, isfinite
 from random import Random
 from statistics import NormalDist
 
-from qeclang.codes import CSSCode
+from qeclang.analysis.frames import CSSLogicalFrame
+from qeclang.codes import CSSCode, SparseCSSCode, same_css_presentation
 from .exhaustive import css_decode, css_logical_success
 
 
@@ -23,6 +24,7 @@ class MemoryExperiment:
     distinct_syndromes: int
     decoder_name: str
     decoder_configuration: dict
+    logical_analysis: str = "exact_row_space"
 
 
 def wilson_interval(failures: int, trials: int,
@@ -41,10 +43,11 @@ def wilson_interval(failures: int, trials: int,
     return max(0.0, center - radius), min(1.0, center + radius)
 
 
-def simulate_css_memory(code: CSSCode, probability: float, *, trials: int,
+def simulate_css_memory(code: CSSCode | SparseCSSCode, probability: float, *, trials: int,
                         seed: int, max_weight: int | None = None,
                         max_candidates_per_sector: int = 1_000_000,
-                        confidence: float = 0.95, decoder=None) -> MemoryExperiment:
+                        confidence: float = 0.95, decoder=None,
+                        logical_frame: CSSLogicalFrame | None = None) -> MemoryExperiment:
     """IID site noise I:(1-p), X:p/3, Y:p/3, Z:p/3; perfect syndromes.
 
     Decoder failures count as memory failures and are separately reported.
@@ -57,7 +60,27 @@ def simulate_css_memory(code: CSSCode, probability: float, *, trials: int,
     ``x.error``/``z.error``. Its complete supplied configuration is recorded;
     max_weight and max_candidates_per_sector apply only to the default exhaustive
     decoder. Custom decoders must be deterministic for syndrome caching.
+    SparseCSSCode requires a matching validated ``logical_frame`` and an explicit
+    decoder. A frame replaces repeated row-space membership with exact syndrome
+    and logical parity tests, without implicit packed lowering. Alternatively,
+    use an explicitly lowered CSSCode with the same sparse decoder.
     """
+    if not isinstance(code, (CSSCode, SparseCSSCode)):
+        raise TypeError("logical-success simulation requires a CSSCode or SparseCSSCode")
+    if logical_frame is not None:
+        if not isinstance(logical_frame, CSSLogicalFrame) or not logical_frame.matches(code):
+            raise ValueError("logical_frame must be a validated frame matching the CSS presentation")
+        logical_success = logical_frame.logical_success
+        logical_analysis = "validated_logical_frame"
+    elif isinstance(code, SparseCSSCode):
+        raise ValueError("sparse logical-success simulation requires a validated logical_frame "
+                         "or explicit packed analysis via sparse_code.to_packed(max_bits=...)")
+    else:
+        def logical_success(x, z, correction):
+            return css_logical_success(code, x, z, correction)
+        logical_analysis = "exact_row_space"
+    if isinstance(code, SparseCSSCode) and decoder is None:
+        raise ValueError("sparse simulation requires an explicit decoder such as CSSBPDecoder")
     if not isfinite(probability) or not 0 <= probability <= 1:
         raise ValueError("probability must be finite and in [0, 1]")
     if type(seed) is not int:
@@ -74,8 +97,7 @@ def simulate_css_memory(code: CSSCode, probability: float, *, trials: int,
                               max_candidates_per_sector=max_candidates_per_sector)
     else:
         decoder_code = getattr(decoder, "code", None)
-        if (not isinstance(decoder_code, CSSCode)
-                or decoder_code.hx != code.hx or decoder_code.hz != code.hz):
+        if not same_css_presentation(decoder_code, code):
             raise ValueError("decoder must target the same CSS check presentation")
         decode = getattr(decoder, "decode", None)
         decoder_name = getattr(decoder, "name", None)
@@ -103,10 +125,10 @@ def simulate_css_memory(code: CSSCode, probability: float, *, trials: int,
         correction = cache[key]
         if not correction.success:
             decoder_failures += 1
-        elif not css_logical_success(code, x, z, correction):
+        elif not logical_success(x, z, correction):
             logical_failures += 1
     failures = logical_failures + decoder_failures
     return MemoryExperiment(trials, failures, decoder_failures, logical_failures,
                             probability, seed, failures / trials, confidence,
                             wilson_interval(failures, trials, confidence), len(cache),
-                            decoder_name, configuration)
+                            decoder_name, configuration, logical_analysis)

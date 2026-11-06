@@ -56,6 +56,9 @@ def css_erasure_decode(code: CSSCode, sx: int, sz: int, erased) -> CSSErasureDec
     by a stabilizer. An uncorrectable region may still produce a consistent
     correction; that is explicitly reported without a logical recovery guarantee.
     """
+    if not isinstance(code, CSSCode):
+        raise TypeError("exact erasure analysis requires CSSCode; explicitly lower sparse codes "
+                        "with to_packed(max_bits=...)")
     support = _support(code.n, erased)
     return CSSErasureDecodeResult(erasure_decode(code.hz, sz, support),
                                   erasure_decode(code.hx, sx, support),
