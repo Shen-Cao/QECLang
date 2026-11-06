@@ -23,6 +23,14 @@ def test_symbolic_parameters_and_explicit_fallback():
             packed.n, packed.k, packed.rank_x, packed.rank_z)
     even = family.instantiate(4)
     assert analyze_lifted(even).status == "unsupported"
+    poly = analyze_lifted(even, backend="polynomial", record_operations=True)
+    assert poly.status == "exact"
+    assert poly.k == analyze_lifted(even, backend="packed").k
+    from qeclang.symbolic.repeated_root import verify_rank_certificate
+    hx, hz = even.symbolic_checks()
+    assert verify_rank_certificate(hx, poly.x_evidence)
+    assert verify_rank_certificate(hz, poly.z_evidence)
+    assert analyze_lifted(even, backend="polynomial", max_steps=0).status == "budget_exhausted"
     assert analyze_lifted(even, backend="packed").status == "exact"
     assert analyze_lifted(even, backend="packed", max_bits=1).status == "budget_exhausted"
     assert analyze_lifted(family.instantiate(3), max_steps=1).status == "budget_exhausted"

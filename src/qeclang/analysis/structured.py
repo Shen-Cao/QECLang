@@ -6,6 +6,7 @@ from qeclang.algebra.polynomial import WorkLimitExceeded
 from qeclang.constructions.lifted import LiftedProduct
 from qeclang.constructions.records import fingerprint
 from qeclang.symbolic.cyclic_analysis import CyclicRankResult, cyclic_rank
+from qeclang.symbolic.repeated_root import CyclicPolynomialRankResult, cyclic_rank_general
 
 
 @dataclass(frozen=True)
@@ -19,8 +20,8 @@ class StructuredParameters:
     rank_z: int | None = None
     steps: int | None = None
     reason: str | None = None
-    x_evidence: CyclicRankResult | None = None
-    z_evidence: CyclicRankResult | None = None
+    x_evidence: CyclicRankResult | CyclicPolynomialRankResult | None = None
+    z_evidence: CyclicRankResult | CyclicPolynomialRankResult | None = None
 
     @property
     def rate(self):
@@ -29,24 +30,33 @@ class StructuredParameters:
 
 def analyze_lifted(construction: LiftedProduct, *, backend="crt", max_degree=512,
                    max_steps=10_000_000, max_entries=1_000_000,
-                   max_blocks=1_000_000, max_bits=100_000_000):
+                   max_blocks=1_000_000, max_bits=100_000_000,
+                   max_polynomial_degree=4096, max_operations=100_000,
+                   record_operations=False):
     """Analyze n,k exactly, or report unsupported/budget_exhausted explicitly.
 
-    crt uses odd cyclic finite-field decomposition. packed explicitly permits
+    crt uses odd cyclic finite-field decomposition; polynomial supports all
+    cyclic orders by unimodular polynomial diagonalization. packed permits
     expansion and exact binary elimination. The caller chooses a fallback;
     this function never changes the requested backend on failure. max_steps
     is shared across both CRT rank computations, including factor verification.
     """
     if not isinstance(construction, LiftedProduct):
         raise TypeError("analysis requires LiftedProduct")
-    if backend not in ("crt", "packed"):
-        raise ValueError("backend must be crt or packed")
+    if backend not in ("crt", "polynomial", "packed"):
+        raise ValueError("backend must be crt, polynomial or packed")
+    if type(record_operations) is not bool:
+        raise ValueError("record_operations must be boolean")
     for name, value in (("max_degree", max_degree), ("max_steps", max_steps),
                         ("max_entries", max_entries), ("max_blocks", max_blocks),
-                        ("max_bits", max_bits)):
+                        ("max_bits", max_bits), ("max_polynomial_degree", max_polynomial_degree),
+                        ("max_operations", max_operations)):
         nonnegative_integer(value, name)
     base = {"construction_fingerprint": fingerprint(construction), "n": construction.n,
             "method": backend}
+    if backend == "polynomial" and len(construction.a.orders) != 1:
+        return StructuredParameters(**base, status="unsupported",
+                                    reason="polynomial backend requires one cyclic factor")
     if backend == "crt" and (len(construction.a.orders) != 1 or construction.a.orders[0] % 2 == 0):
         return StructuredParameters(**base, status="unsupported",
                                     reason="CRT field backend requires one odd cyclic factor")
@@ -64,9 +74,16 @@ def analyze_lifted(construction: LiftedProduct, *, backend="crt", max_degree=512
                                     rank_x=code.hx.rank(), rank_z=code.hz.rank())
     hx, hz = construction.symbolic_checks(max_blocks=max_blocks)
     try:
-        x = cyclic_rank(hx, max_degree=max_degree, max_steps=max_steps, max_entries=max_entries)
-        z = cyclic_rank(hz, max_degree=max_degree, max_steps=max_steps-x.steps,
-                        max_entries=max_entries, factorization=x.factorization)
+        if backend == "polynomial":
+            options = dict(max_lift=max_degree, max_polynomial_degree=max_polynomial_degree,
+                           max_entries=max_entries, record_operations=record_operations)
+            x = cyclic_rank_general(hx, max_steps=max_steps, max_operations=max_operations, **options)
+            z = cyclic_rank_general(hz, max_steps=max_steps-x.steps,
+                                    max_operations=max_operations-x.operation_count, **options)
+        else:
+            x = cyclic_rank(hx, max_degree=max_degree, max_steps=max_steps, max_entries=max_entries)
+            z = cyclic_rank(hz, max_degree=max_degree, max_steps=max_steps-x.steps,
+                            max_entries=max_entries, factorization=x.factorization)
     except WorkLimitExceeded as error:
         return StructuredParameters(**base, status="budget_exhausted", reason=str(error))
     return StructuredParameters(**base, status="exact", k=construction.n-x.rank-z.rank,
