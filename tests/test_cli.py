@@ -16,5 +16,7 @@ def test_commands(capsys, tmp_path):
     assert len(capsys.readouterr().out.splitlines()) == 2
     assert main(["simulate", "--trials", "10", "--probability", "0"]) == 0
     assert json.loads(capsys.readouterr().out)["trials"] == 10
+    assert main(["simulate", "--trials", "10", "--decoder", "bp-osd0"]) == 0
+    assert "min_sum" in json.loads(capsys.readouterr().out)["decoder_name"]
     assert main(["distance", "--max-weight", "-1"]) == 2
     assert "max_weight" in capsys.readouterr().err

@@ -41,6 +41,10 @@ def main(argv=None):
             sub.add_argument("--probability", type=float, default=0.01)
             sub.add_argument("--trials", type=int, default=1000)
             sub.add_argument("--seed", type=int, default=0)
+            sub.add_argument("--decoder", choices=("exhaustive", "bp", "bp-osd0"),
+                             default="exhaustive")
+            sub.add_argument("--iterations", type=int, default=50)
+            sub.add_argument("--min-sum-scale", type=float, default=0.8)
     search = commands.add_parser("search")
     search.add_argument("--orders", nargs="+", type=int, default=[3, 3])
     search.add_argument("--terms", type=int, default=3)
@@ -74,9 +78,18 @@ def main(argv=None):
         elif args.command == "simulate":
             if not isinstance(code, CSSCode):
                 raise ValueError("simulation requires a CSS code")
+            decoder = None
+            if args.decoder != "exhaustive":
+                from qeclang.decoding import CSSBPDecoder
+                marginal = 2 * args.probability / 3
+                decoder = CSSBPDecoder(code, marginal, marginal,
+                                       max_iterations=args.iterations,
+                                       min_sum_scale=args.min_sum_scale,
+                                       fallback="osd0" if args.decoder == "bp-osd0" else "none")
             _json(asdict(simulate_css_memory(code, args.probability, trials=args.trials,
                                              seed=args.seed, max_weight=args.max_weight,
-                                             max_candidates_per_sector=args.max_candidates)))
+                                             max_candidates_per_sector=args.max_candidates,
+                                             decoder=decoder)))
     except (ValueError, TypeError, OSError) as error:
         print(f"qeclang: {error}", file=sys.stderr)
         return 2
