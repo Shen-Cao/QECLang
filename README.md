@@ -1,5 +1,10 @@
 # QECLang
 
+> [!NOTE]
+> This project is incomplete and still under development. Most of the code was
+> vibe-coded (written with heavy AI assistance) and still awaits thorough human
+> review.
+
 Structured primitives for quantum error correction research: exact binary
 algebra, representation-aware constructions, bounded analysis, and reproducible
 experiments. This is a research foundation, not a complete QEC compiler or a
