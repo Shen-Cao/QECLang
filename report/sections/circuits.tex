@@ -1,0 +1,68 @@
+\section{CSS memory circuits and detector evidence}
+
+\subsection{Initialization, extraction, and boundaries}
+A finite CSS presentation does not determine its physical measurement circuit.
+The circuit layer adds ordered gates, explicit faults, measurement-record
+indices, and detector/observable parities. The reference memory schedule
+initializes a known logical X or Z eigenstate: independent code stabilizers
+and the chosen logical generators form a complete positive stabilizer set.
+This is an ideal state boundary, not an arbitrary-input encoder or a
+fault-tolerant preparation procedure.
+
+Each retained check has a dedicated ancilla reset before every use. A Z
+check uses data-to-ancilla CX gates followed by ancilla Z measurement.
+An X check surrounds ancilla-to-data CX gates with ancilla Hadamards before
+Z measurement. Checks run sequentially, retaining redundant and zero-weight
+rows. An optional undirected interaction graph constrains these extraction
+edges; it does not constrain the ideal preparation synthesis.
+
+Writing $m_{r,j}$ for check $j$ in round $r$, the initial and temporal
+parities are respectively $m_{0,j}$ and $m_{r,j}+m_{r-1,j}$ over $\F$.
+Final destructive readout closes only checks matching the memory basis:
+\begin{equation}
+ m_{T-1,j}+\sum_{q\in\operatorname{supp}(H_{b,j})}m_q^{\rm final}.
+\end{equation}
+The same-basis logical representatives define final observable parities.
+Opposite logical bases require separate experiments. For $m$ retained
+checks and $m_b$ matching-basis checks, $T$ rounds produce $Tm+n$
+measurements and $Tm+m_b$ detectors. An empty logical-observable set is
+not accepted as evidence of memory protection.
+
+\subsection{Fault and detector semantics}
+The current fault model applies data depolarization at each round's start,
+reset flips after ancilla resets, one-qubit depolarization after Hadamards,
+and two-qubit depolarization after CX gates. X before Z measurement and Z
+before X measurement model readout flips for the discarded/reset measured
+qubits in this schedule. Ideal initialization has no faults. Round ticks
+supply neither calibrated idle durations nor optimized gate depth.
+
+The detector model stores sparse binary maps $H$ and $L$ on independent
+Bernoulli fault mechanisms $f$:
+\begin{equation}
+ d=Hf,\qquad \ell=Lf.
+\end{equation}
+A column can touch arbitrarily many detectors or only logical observables;
+there is no graphlike assumption. A decoder predicts $\hat f$ satisfying
+$H\hat f=d$, but logical success additionally requires $L\hat f=\ell$.
+Independent syndrome verification precedes logical comparison. Native
+model samples and direct circuit samples carry distinct provenance.
+
+\subsection{Optional compilation and limits}
+The Stim backend compiles the ideal signed preparation and checks its
+synthesized tableau exactly before appending extraction and record
+annotations~\cite{gidney2021,stim116}. Strict detector conversion forbids random
+gauge detectors, disjoint-error approximations, and automatic graphlike
+decomposition. Generic signed preparations use their actual noiseless
+reference; the compiler does not force all reference parities to zero.
+
+Representation sizes, preparation/reference tableaux, synthesized output,
+model expansion, decoding graphs, and sample buffers have separate guards.
+Foreign synthesis and simulator workspace are not total-memory guarantees.
+Reproducibility records retain circuit/model descriptions, source and
+backend versions, noise placement, seeds, and batching. Seeded Stim output
+is not guaranteed bitwise identical across versions or machine capabilities.
+
+These are circuit-level memory experiments under stated assumptions.
+Check sparsity does not certify fault tolerance of the extraction gadgets,
+static code distance does not equal circuit distance automatically, and
+finite-size failure curves alone establish no threshold.

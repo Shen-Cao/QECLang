@@ -77,8 +77,9 @@ fault tolerance additionally depends on extraction gates, ancillas,
 measurement order, and correlated faults. A threshold requires family
 scaling, not a single small-code curve.
 
-Established simulation and decoding packages should be integrated by
-capability. Stim handles supported stabilizer circuits~\cite{gidney2021}.
+External simulation and decoding packages have distinct capabilities.
+The optional circuit backend uses Stim for supported stabilizer
+circuits~\cite{gidney2021}.
 PyMatching's sparse blossom solves matching-based decoding
 problems~\cite{higgott2025}; arbitrary hypergraph syndromes require
 additional treatment. Decoder adapters should expose their assumptions

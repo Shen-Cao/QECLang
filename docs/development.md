@@ -5,13 +5,13 @@ Use a virtual environment and install from the repository root:
 ```sh
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install -e '.[dev,sdp]'
+python -m pip install -e '.[dev,sdp,circuits]'
 python -m pytest
 python -m ruff check .
 git diff --check
 ```
 
-The core is dependency-free; NumPy/SciPy and CVXPY/SCS are optional numerical tools.
+The core is dependency-free; NumPy/SciPy, CVXPY/SCS, and Stim are optional backends.
 CI runs the complete development checks on Python 3.11, 3.12 and 3.13. Dependency
 minimums describe compatibility, not a bit-for-bit numerical environment. For
 published experiments, archive an environment lock, source revision, input

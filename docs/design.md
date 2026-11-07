@@ -96,3 +96,14 @@ SQLite studies persist deterministic random/mutation proposals, typed seeds, bou
 A recovery objective must identify the protected input state and output space. The optional `sdp` backend implements recovery for a fixed subspace isometry or fixed CPTP encoding channel, using maximally mixed logical input and recovery directly to the logical space. `prepare_encoding` converts a subsystem isometry plus an explicit gauge density into the channel `ρ ↦ V(ρ⊗σ)V†`, retaining gauge diagnostics and any requested bounded repair. An unprepared gauge subsystem is rejected; optimizing for this fixed preparation does not protect arbitrary gauge inputs. Primal and dual solves return separate feasibility diagnostics and a numerical gap; raw Choi candidates are retained without implicit repair. See [recovery contracts](recovery.md). It has a dense Choi matrix of dimension received-dimension times logical-dimension. This semantic extension does not provide a sparse decoder, an extraction schedule, or a circuit-level threshold estimate.
 
 The CSS distance portfolio composes verified heuristic/solver upper witnesses with exhaustive-layer lower bounds, preserving numerical solver bounds separately. Sparse BP treats prior probabilities zero and one as exact fixed bits and propagates them before message passing; variable/check/edge budgets are checked before graph allocation. See [distance evidence](distance_portfolio.md), [decoder contracts](decoding.md), and [encoding preparation](encoding.md).
+
+## Bounded circuit execution
+
+The circuit layer now supplies typed sequential CSS extraction and known-state
+memory boundaries, with separately declared stochastic Pauli faults. Optional
+Stim compilation retains a validated artifact, strict undecomposed detector
+models, and a streamed prediction/evaluation path. The model preserves detector
+hyperedges and logical-only faults; it does not assume matching compatibility.
+Initialization is ideal, extraction is sequential, and one logical basis is
+read per experiment. This is a specific temporal workflow, not a universal
+instrument language or an arbitrary-input encoder. See [circuit contracts](circuits.md).

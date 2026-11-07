@@ -34,6 +34,7 @@ dense semantic checks and SciPy/HiGHS optimization. The `dev` extra includes
 these numerical dependencies. Install `pip install -e '.[sdp]'` for fixed-encoding
 recovery optimization with CVXPY/SCS. No commercial solver or machine-specific
 setup is required.
+Install `pip install -e '.[circuits]'` for the tested Stim 1.16 circuit backend.
 
 ```python
 from qeclang.constructions import hypergraph_product, repetition_check
@@ -61,6 +62,7 @@ print(css_distance(code, "x", max_weight=3, max_candidates=100_000))
 | General semantics | Optional dense isometries, Knill–Laflamme checks, immutable Kraus channels, explicit Choi/gauge preparation, and fixed-encoding recovery SDP |
 | Evidence | Independently checked rank/logical certificates, Lean CSS witness theorem and bounded concrete replay |
 | Experiments | Versioned JSON, CLI, resumable SQLite search studies, seeded candidate generation and timing scripts |
+| Circuits | Bounded sequential CSS extraction, explicit Pauli fault locations, strict Stim detector models, and streamed logical-failure sampling |
 
 `distance.status == "exact"` denotes an exact finite search result. A stopped
 search reports a bound interval and a logical witness; it does not report an
@@ -76,8 +78,9 @@ lower bounds remain separate; a heuristic score is never reported as a proof.
 A finite check-weight profile does not prove that a family is qLDPC. The packed
 backend is intended for small and moderate instances, and elimination can
 become dense. Enumeration is exponential and bounded; decoding is a reference
-baseline, not a scalable general qLDPC decoder. Circuit noise, thresholds,
-noncommutative lifted products, qudits, and bosonic/dynamical execution remain
+baseline, not a scalable general qLDPC decoder. The initial circuit backend models
+explicit Pauli faults and ideal initialization; optimized fault-tolerant schedules,
+threshold studies, noncommutative lifted products, qudits, and bosonic/dynamical execution remain
 research work described in the [roadmap](docs/roadmap.md).
 
 ## Reproducible experiments
@@ -98,6 +101,18 @@ qeclang study results/study.sqlite3 --trials 20 --strategy mutate --seed 7
 
 See [decoding methods](docs/decoding.md) for iterative decoder assumptions and
 the distinction between syndrome convergence and logical success.
+
+The optional [circuit-memory workflow](docs/circuits.md) preserves raw detector
+hyperedges and explicit noise/boundary assumptions:
+
+```sh
+qeclang circuit-memory --code steane --basis z --rounds 3 --trials 100 --seed 7 \
+  --two-qubit-error 0.001 --measurement-error 0.001 --fallback osd0 \
+  --stim-output results/memory.stim
+```
+
+This prepares a known logical state and measures one logical basis per run.
+It does not claim arbitrary-input encoding, fault tolerance, or a threshold.
 
 Candidate records include construction parameters, seed, code, algorithm
 budgets, bound statuses and witnesses. These are candidates, not automatically
