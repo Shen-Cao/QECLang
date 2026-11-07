@@ -14,6 +14,14 @@ bound $w+1$. Interrupting midway through weight $w$ only retains the
 previous complete-layer bound. Absence of a witness within a budget is
 not evidence that no logical exists.
 
+The CSS portfolio combines seeded logical-coset combinations and greedy
+stabilizer descent with exhaustive-layer exclusion and optional MILP.
+Only independently verified witnesses improve the upper bound, and only
+complete enumeration layers improve its rigorous lower bound. Solver lower
+estimates remain separate numerical evidence. Equality of rigorous bounds
+establishes exactness; heuristic descent alone can stop at a local minimum.
+Basis construction and each search method have separate resource budgets.
+
 For one CSS sector and erasure support $E$, let $H$ be the detecting
 matrix and $B$ the same-sector stabilizer matrix, with $HB^T=0$. The
 supported cycle dimension is
@@ -51,6 +59,10 @@ optional order-zero post-processing retains reliable hard decisions and
 solves remaining corrections by reliability-ordered elimination. This is
 inspired by the established BP/OSD approach~\cite{roffe2020}; it supplies
 neither an optimality guarantee nor a full higher-order OSD search.
+Zero and one prior probabilities fix bits exactly; sparse substitution
+and singleton propagation remove them before message passing. The fallback
+cannot change fixed bits, and an iteration limit does not prove inconsistency.
+Graph sizes are guarded before adjacency allocation.
 Message updates use sparse edges; full iterations additionally scan
 variables and checks. Packed fallback costs are guarded separately.
 Portable complete logical frames allow sparse simulations to classify

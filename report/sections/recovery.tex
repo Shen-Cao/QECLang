@@ -9,7 +9,11 @@ For the maximally mixed logical input, entanglement fidelity is
 \end{equation}
 Optimizing recovery for a fixed encoding and noise model is a
 semidefinite program~\cite{fletcher2007}; this objective does not assert
-worst-case fidelity or optimize the encoding simultaneously.
+worst-case fidelity or optimize the encoding simultaneously. For a fixed
+CPTP encoder with Kraus operators $E_s$, replace the effective family by
+$A_{a,s}=N_aE_s$ and sum over both indices. The following formulas use a
+single index for that effective family; $K$ remains the encoder input
+dimension, even if its encoding channel is irreversible.
 
 Use column-stacked vectorization, ordered as received space tensor
 logical output, and define
@@ -33,11 +37,15 @@ $\operatorname{Tr}Y+\operatorname{Tr}[(C-Y\otimes I_K)J]$.
 The primal has a strictly feasible point $I_E\otimes I_K/K$, so the
 finite-dimensional formulation has strong duality.
 
-The optional CVXPY backend implements this formulation for a fixed subspace
-encoder and numerically validated Kraus noise, solving primal and dual
-problems separately. It rejects unprepared gauge subsystems. A subsystem
-objective would require an explicitly specified gauge preparation. Treating all logical--gauge columns as protected
-logical states would change the subsystem objective. It is a dense
+The optional CVXPY backend accepts a fixed subspace isometry or CPTP
+encoding channel and numerically validated Kraus noise, solving primal
+and dual problems separately. For a subsystem isometry, explicit gauge
+preparation $\sigma=\sum_s\lambda_s|g_s\rangle\langle g_s|$ produces
+$E_s=\sqrt{\lambda_s}V(I_K\otimes|g_s\rangle)$ and hence the channel
+$\rho\mapsto V(\rho\otimes\sigma)V^\dagger$. This is a fixed product
+preparation, not protection for unspecified or correlated gauge inputs.
+Unprepared gauge subsystems are rejected. Treating all logical--gauge
+columns as protected logical states would change the objective. It is a dense
 small-system analysis, with Choi dimension $EK$; it does not supply a
 sparse qLDPC decoder or an extraction circuit.
 

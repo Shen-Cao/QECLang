@@ -24,6 +24,7 @@ python -m pytest
 python -m ruff check .
 qeclang inspect --code steane
 qeclang distance --code five --max-weight 3
+qeclang distance --code steane --method portfolio --heuristic-seed 7
 qeclang simulate --code steane --probability 0.01 --trials 1000 --seed 7
 qeclang simulate --code toric --size 5 --decoder bp-osd0 --trials 100 --seed 7
 ```
@@ -55,9 +56,9 @@ print(css_distance(code, "x", max_weight=3, max_candidates=100_000))
 | Symbolic constructions | Finite abelian group algebra and block matrices, multiplication/adjoints, regular-representation lowering, symbolic locality, replayable family manifests |
 | Code families | Hypergraph and commutative lifted products, abelian bicycle codes, direct sums, toric and Bacon–Shor families; Steane, Shor and five-qubit fixtures |
 | Transformations | Physical permutations, Hadamard duality, check reduction, chain maps, induced homology and quasi-isomorphism checks |
-| Analysis | Exact cyclic/abelian dimension backends, certified portable logical frames, rank/locality/erasure analysis, bounded CSS/stabilizer/subsystem distance; optional MILP |
+| Analysis | Exact cyclic/abelian dimension backends, certified portable logical frames, rank/locality/erasure analysis, bounded distance and verified CSS upper-bound heuristics; optional MILP |
 | Decoding | Bounded minimum-weight and erasure decoders; sparse min-sum BP with optional order-zero reliability fallback; independent CSS sectors and perfect-syndrome simulation |
-| General semantics | Optional dense isometries, Knill–Laflamme checks, immutable Kraus channels, explicit Choi conversion, and fixed-encoding recovery SDP |
+| General semantics | Optional dense isometries, Knill–Laflamme checks, immutable Kraus channels, explicit Choi/gauge preparation, and fixed-encoding recovery SDP |
 | Evidence | Independently checked rank/logical certificates, Lean CSS witness theorem and bounded concrete replay |
 | Experiments | Versioned JSON, CLI, resumable SQLite search studies, seeded candidate generation and timing scripts |
 
@@ -67,6 +68,10 @@ unproved distance. Codes with no logical qubits use `no_logicals`. MILP uses
 separate `solver_optimal` evidence because numerical optimization is not a
 formal arithmetic proof. Read [API conventions](docs/api.md) before interpreting
 results.
+
+The [distance portfolio](docs/distance_portfolio.md) combines rigorous exhaustive
+lower bounds with verified heuristic/solver upper witnesses. Numerical MILP
+lower bounds remain separate; a heuristic score is never reported as a proof.
 
 A finite check-weight profile does not prove that a family is qLDPC. The packed
 backend is intended for small and moderate instances, and elimination can
