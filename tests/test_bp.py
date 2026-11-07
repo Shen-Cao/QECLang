@@ -119,7 +119,7 @@ def test_fallback_materialization_limit_and_failure_status():
     assert result.error is None and result.syndrome_residual == 1
 
 
-@pytest.mark.parametrize('probabilities', [0, 1, float('nan'), [0.1], [0.1, 1]])
+@pytest.mark.parametrize('probabilities', [-0.1, 1.1, float('nan'), [0.1], [0.1, 1.01]])
 def test_invalid_probabilities(probabilities):
     with pytest.raises(ValueError):
         BPDecoder(M((3,), 2), probabilities)
@@ -176,3 +176,175 @@ def test_memory_simulation_decoder_selection_and_provenance():
         simulate_css_memory(different, 0.1, trials=1, seed=1, decoder=decoder)
     decoder.x.max_iterations = 10
     assert a.decoder_configuration['x']['max_iterations'] == 50
+
+
+def test_deterministic_prior_bits_are_eliminated_and_unit_propagated():
+    checks = M((3, 6, 12), 4)
+    decoder = BPDecoder(checks, [1, .1, .1, .1], max_iterations=0, llr_clip=1e-12)
+    result = decoder.decode(0)
+    assert result.status == 'converged' and result.error == 15 and result.iterations == 0
+    assert decoder.configuration['probabilities'] == (1, .1, .1, .1)
+    contradictory = BPDecoder(M((3, 6, 12, 8), 4), [1, .1, .1, .1], max_iterations=0)
+    result = contradictory.decode(0)
+    assert result.status == 'inconsistent_priors' and not result.success
+    assert result.last_decision & 1
+    assert BPDecoder(M((1,), 1), 0).decode(1).status == 'inconsistent_priors'
+    assert BPDecoder(M((1,), 1), 1).decode(0).status == 'inconsistent_priors'
+
+
+def test_osd_only_changes_unfixed_bits_and_uses_reduced_budget():
+    checks = M((7,), 3)
+    decoder = BPDecoder(checks, [1, .1, .1], max_iterations=0, fallback='osd0',
+                         max_osd_bits=2, llr_clip=1e-12)
+    result = decoder.decode(0)
+    assert result.status == 'osd0' and result.error == 3
+    assert result.error & 1 and checks.matvec(result.error) == 0
+    limited = BPDecoder(checks, [1, .1, .1], max_iterations=0, fallback='osd0', max_osd_bits=1)
+    assert limited.decode(0).status == 'fallback_limit'
+    # The full system has solutions, but every solution requires excluded bit 3.
+    contradictory = M((7, 15), 4)
+    possible = {contradictory.matvec(v) for v in range(16)}
+    assert 2 in possible
+    pure = BPDecoder(contradictory, [.1, .1, .1, 0], max_iterations=0)
+    assert pure.decode(2).status == 'not_converged'
+    with_fallback = BPDecoder(contradictory, [.1, .1, .1, 0], max_iterations=0, fallback='osd0')
+    result = with_fallback.decode(2)
+    assert result.status == 'inconsistent_priors' and result.error is None
+    assert not result.last_decision & 8
+
+
+def test_all_fixed_zero_check_and_empty_endpoint_cases():
+    for probabilities in (0, 1, []):
+        result = BPDecoder(M((), 0), probabilities).decode(0)
+        assert result.success and result.error == 0
+    assert BPDecoder(M((), 3), [0, 1, 0]).decode(0).error == 2
+    assert BPDecoder(M((0,), 0), []).decode(1).status == 'inconsistent'
+    for probabilities in product((0, 1), repeat=3):
+        checks = M((3, 6), 3)
+        word = sum(bit << i for i, bit in enumerate(probabilities))
+        decoder = BPDecoder(checks, probabilities, max_iterations=0, fallback='osd0')
+        for syndrome in range(4):
+            result = decoder.decode(syndrome)
+            if syndrome == checks.matvec(word):
+                assert result.success and result.error == word
+            else:
+                assert result.status == 'inconsistent_priors'
+
+
+def test_endpoint_decoder_matches_exhaustive_allowed_error_sets():
+    # All two-check, three-variable binary graphs, ternary prior types, and syndromes.
+    for rows in product(range(8), repeat=2):
+        checks = M(rows, 3)
+        for probabilities in product((0, .2, 1), repeat=3):
+            allowed = {word for word in range(8)
+                       if all(p not in (0, 1) or (word >> site) & 1 == p
+                              for site, p in enumerate(probabilities))}
+            possible_syndromes = {checks.matvec(word) for word in allowed}
+            decoder = BPDecoder(checks, probabilities, max_iterations=0, fallback='osd0')
+            for syndrome in range(4):
+                result = decoder.decode(syndrome)
+                assert result.success == (syndrome in possible_syndromes)
+                if result.success:
+                    assert result.error in allowed
+                    assert checks.matvec(result.error) == syndrome
+                else:
+                    expected = ('inconsistent_priors' if any(p in (0, 1) for p in probabilities)
+                                else 'inconsistent')
+                    assert result.status == expected
+
+
+def test_sparse_endpoint_decoding_is_equivalent_without_source_lowering(monkeypatch):
+    checks = M((7, 14, 13), 4)
+    packed = BPDecoder(checks, [0, 1, .1, .9], fallback='osd0')
+    sparse = BPDecoder(SparseBinaryMatrix.from_packed(checks), [0, 1, .1, .9], fallback='osd0')
+    def forbidden(*args, **kwargs):
+        raise AssertionError('sparse source must not be lowered')
+    monkeypatch.setattr(SparseBinaryMatrix, 'to_packed', forbidden)
+    for syndrome in range(8):
+        assert sparse.decode(syndrome) == packed.decode(syndrome)
+
+
+def test_zero_noise_css_simulation_and_cli(capsys):
+    import json
+    from qeclang.cli import main
+    from qeclang.decoding import simulate_css_memory
+    h = M((85, 102, 120), 7)
+    code = CSSCode(h, h)
+    decoder = CSSBPDecoder(code, 0, 0, fallback='osd0')
+    assert decoder.decode(0, 0).success
+    assert decoder.decode(1, 0).z.status == 'inconsistent_priors'
+    result = simulate_css_memory(code, 0, trials=30, seed=24, decoder=decoder)
+    assert result.failures == result.decoder_failures == result.logical_failures == 0
+    assert result.decoder_configuration['x']['probabilities'] == [0] * 7
+    assert main(['simulate', '--code', 'steane', '--decoder', 'bp', '--probability', '0',
+                 '--trials', '5']) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output['failures'] == 0
+
+
+def test_endpoint_message_passing_matches_explicit_reduced_graph():
+    checks = M((0b001111, 0b111100, 0b110011), 6)
+    probabilities = [1, .17, .31, 0, .42, .68]
+    free = (1, 2, 4, 5)
+    fixed_word = 1
+    reduced = M(tuple(sum(((row >> site) & 1) << j for j, site in enumerate(free))
+                      for row in checks.rows), len(free))
+    for fallback in ('none', 'osd0'):
+        original_decoder = BPDecoder(checks, probabilities, max_iterations=5,
+                                      damping=.3, fallback=fallback)
+        reduced_decoder = BPDecoder(reduced, [probabilities[i] for i in free],
+                                     max_iterations=5, damping=.3, fallback=fallback)
+        for syndrome in range(8):
+            original = original_decoder.decode(syndrome)
+            smaller = reduced_decoder.decode(syndrome ^ checks.matvec(fixed_word))
+            assert original.success == smaller.success
+            assert original.iterations == smaller.iterations
+            expected = ('inconsistent_priors' if smaller.status == 'inconsistent' else smaller.status)
+            assert original.status == expected
+            assert [original.posterior_llrs[i] for i in free] == list(smaller.posterior_llrs)
+            if original.success:
+                lifted = fixed_word | sum(((smaller.error >> j) & 1) << site
+                                          for j, site in enumerate(free))
+                assert original.error == lifted
+
+
+def test_graph_budgets_precede_prior_and_adjacency_allocation(monkeypatch):
+    import qeclang.decoding.belief_propagation as bp
+    def forbidden(*args, **kwargs):
+        raise AssertionError('prior allocation reached before graph preflight')
+    monkeypatch.setattr(bp, '_probabilities', forbidden)
+    huge = SparseBinaryMatrix(((999_999_999,),), 1_000_000_000)
+    with pytest.raises(ValueError, match='max_variables'):
+        BPDecoder(huge)
+    with pytest.raises(ValueError, match='max_checks'):
+        BPDecoder(SparseBinaryMatrix(((),) * 5, 0), max_checks=4)
+    with pytest.raises(ValueError, match='max_edges'):
+        BPDecoder(SparseBinaryMatrix(((0, 1), (1, 2)), 3), max_edges=3)
+    with pytest.raises(ValueError, match='max_edges'):
+        BPDecoder(M((3, 6), 3), max_edges=3)
+    # Exact fixed priors cannot bypass bounds on the original graph allocation.
+    with pytest.raises(ValueError, match='max_edges'):
+        BPDecoder(SparseBinaryMatrix(((0, 1),), 2), probabilities=0, max_edges=1)
+
+
+def test_graph_budget_configuration_and_zero_limits():
+    decoder = BPDecoder(M((), 0), 0, max_variables=0, max_checks=0, max_edges=0)
+    assert decoder.decode(0).success
+    assert decoder.configuration['max_variables'] == 0
+    assert decoder.configuration['max_checks'] == 0
+    assert decoder.configuration['max_edges'] == 0
+    code = CSSCode(M((3,), 2), M((3,), 2))
+    css = CSSBPDecoder(code, max_variables=2, max_checks=1, max_edges=2)
+    assert css.configuration['x']['max_variables'] == 2
+    assert css.configuration['z']['max_checks'] == 1
+    assert css.configuration['x']['max_edges'] == 2
+    from qeclang.decoding import simulate_css_memory
+    experiment = simulate_css_memory(code, 0, trials=1, seed=0, decoder=css)
+    assert experiment.decoder_configuration['z']['max_edges'] == 2
+
+
+@pytest.mark.parametrize('name', ['max_variables', 'max_checks', 'max_edges'])
+@pytest.mark.parametrize('value', [-1, True, 1.5])
+def test_invalid_graph_budgets(name, value):
+    with pytest.raises(ValueError, match=name):
+        BPDecoder(M((), 0), **{name: value})
