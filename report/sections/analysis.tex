@@ -1,8 +1,8 @@
 \section{Analysis as evidence production}
 
 \subsection{Bounds, witnesses, and stopping rules}
-Exact rank and orthogonality are inexpensive compared with generic
-distance analysis. Minimum-distance computation is NP-hard even for CSS
+Exact rank and orthogonality provide useful filters before generic
+distance analysis, although their own size and fill-in costs matter. Minimum-distance computation is NP-hard even for CSS
 codes~\cite{kapshikar2023}. Therefore every potentially exponential
 analysis needs an explicit budget and a result that distinguishes a
 complete computation from an interrupted one.
@@ -53,6 +53,9 @@ inspired by the established BP/OSD approach~\cite{roffe2020}; it supplies
 neither an optimality guarantee nor a full higher-order OSD search.
 Message updates use sparse edges; full iterations additionally scan
 variables and checks. Packed fallback costs are guarded separately.
+Portable complete logical frames allow sparse simulations to classify
+residuals by logical pairing without rerunning elimination. Their rank
+and pairing evidence must first be validated against the source checks.
 
 Experiment records need the noise model, code and decoder versions,
 random seed, stopping rule, trial count, failure count, and confidence

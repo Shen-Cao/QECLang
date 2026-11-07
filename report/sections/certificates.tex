@@ -1,0 +1,47 @@
+\section{Portable evidence and formal scope}
+
+\subsection{Rank and logical certificates}
+For a binary matrix $A$, the identities
+\begin{equation}
+ A=UV,\qquad WU=I_r,\qquad VZ=I_r
+\end{equation}
+certify rank $r$: factorization bounds rank above, while $WAZ=I_r$ bounds
+it below. Production may use elimination, but verification needs only
+matrix identities. Sparse verification computes product rows separately
+and compares them with source supports, avoiding a full expanded product.
+The certificates themselves may still be dense and are resource guarded.
+
+For an X-sector logical witness, the equations
+\begin{equation}
+ H_Zx=0,\qquad H_Xz=0,\qquad x\cdot z=1
+\end{equation}
+certify that $x$ is a cycle outside $\row H_X$. This supplies a distance
+upper bound through its physical weight, not an optimality certificate.
+The Z sector exchanges the matrices. General stabilizer witnesses use
+the corresponding symplectic pairing.
+
+Portable logical frames include rank certificates establishing $k$ and
+$k$ paired representatives per sector. Zero syndromes and an identity
+X/Z pairing establish independence modulo stabilizers; the exact logical
+count establishes completeness. Imported frames allow sparse simulations
+to classify residuals without repeating elimination. Frame production
+remains explicit, and import binds the evidence to the physical check
+presentation. Fingerprints are neither code-equivalence classifiers nor
+authenticity signatures.
+
+\subsection{Lean checking and literal replay}
+The pinned Lean project proves parity distributivity over XOR, annihilation
+of a row span by an orthogonal dual, and soundness of an executable
+CSS-sector witness checker. Raw lists are accepted only at their declared
+widths. Acceptance implies zero opposite-sector syndrome and exclusion
+from the same-sector span. The theorem dependency audit reports only
+Lean's standard propositional-extensionality axiom; no custom assumptions
+or admitted proof placeholders are introduced~\cite{demoura2021}.
+
+A bounded Python exporter checks source/certificate records, emits only
+natural-number and Boolean literals, and asks Lean to verify the concrete
+checker result by kernel reduction. It then applies the soundness theorem.
+Python parsing, fingerprinting, bitset translation, physical weight, and
+the connection to quantum-code semantics are outside this proof. Neither
+numerical solver output nor the polynomial-rank backend becomes formally
+verified by sharing the same repository.

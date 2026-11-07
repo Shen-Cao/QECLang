@@ -5,6 +5,9 @@
 \usepackage{amsmath,amssymb,amsthm,booktabs,array}
 \usepackage[hidelinks]{hyperref}
 \usepackage{microtype}
+\widowpenalty=10000
+\clubpenalty=10000
+\displaywidowpenalty=10000
 \newcommand{\F}{\mathbb{F}_2}
 \newcommand{\wt}{\operatorname{wt}}
 \newcommand{\rank}{\operatorname{rank}}
@@ -20,12 +23,19 @@
 \begin{abstract}
 We propose a layered interface for constructing and analyzing quantum error-correcting codes. General finite-dimensional code semantics is separated from efficient representations of binary stabilizer, subsystem, and CSS codes. Based chain complexes provide the central CSS dialect, with physical weights and generator presentations retained as essential data. We develop exact finite-instance identities, preservation requirements for lowering, and an evidence model for computational analysis. The accompanying software is a research foundation, not a complete implementation of all code classes or an efficient solution to general distance computation. We identify concrete extensions in symbolic construction, decoder integration, experimental reproducibility, and formal verification.
 \end{abstract}
+\setcounter{tocdepth}{1}
 \tableofcontents
 \input{sections/semantics}
 \input{sections/algebra}
 \input{sections/constructions}
+\input{sections/structured_analysis}
 \input{sections/analysis}
+\input{sections/certificates}
+\input{sections/recovery}
 \input{sections/architecture}
+\begingroup
+\small
 \bibliographystyle{plainurl}
 \bibliography{bibliography}
+\endgroup
 \end{document}

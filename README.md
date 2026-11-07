@@ -30,8 +30,9 @@ qeclang simulate --code toric --size 5 --decoder bp-osd0 --trials 100 --seed 7
 
 Use `pip install -e .` for the core alone, or `pip install -e '.[numeric]'` for
 dense semantic checks and SciPy/HiGHS optimization. The `dev` extra includes
-these numerical dependencies. No commercial solver or machine-specific setup
-is required.
+these numerical dependencies. Install `pip install -e '.[sdp]'` for fixed-encoding
+recovery optimization with CVXPY/SCS. No commercial solver or machine-specific
+setup is required.
 
 ```python
 from qeclang.constructions import hypergraph_product, repetition_check
@@ -51,13 +52,14 @@ print(css_distance(code, "x", max_weight=3, max_candidates=100_000))
 |---|---|
 | Exact algebra | Immutable packed and sparse GF(2) matrices; exact packed rank, kernel, solve, products; guarded conversions and optional SciPy interchange |
 | Code representations | CSS, based three-term complexes, signed Pauli stabilizers, subsystem gauge modules with optional signed center sectors |
-| Symbolic constructions | Finite abelian group algebra and block matrices, multiplication/adjoints, regular-representation lowering, symbolic locality |
+| Symbolic constructions | Finite abelian group algebra and block matrices, multiplication/adjoints, regular-representation lowering, symbolic locality, replayable family manifests |
 | Code families | Hypergraph and commutative lifted products, abelian bicycle codes, direct sums, toric and Bacon–Shor families; Steane, Shor and five-qubit fixtures |
 | Transformations | Physical permutations, Hadamard duality, check reduction, chain maps, induced homology and quasi-isomorphism checks |
-| Analysis | Logical frames, rank/rate/locality, known-location erasure tests, bounded exact CSS/stabilizer/subsystem distance; optional MILP |
+| Analysis | Exact cyclic/abelian dimension backends, certified portable logical frames, rank/locality/erasure analysis, bounded CSS/stabilizer/subsystem distance; optional MILP |
 | Decoding | Bounded minimum-weight and erasure decoders; sparse min-sum BP with optional order-zero reliability fallback; independent CSS sectors and perfect-syndrome simulation |
-| General semantics | Optional dense subspace/subsystem isometries, numerical Knill–Laflamme checks, stabilizer-to-isometry lowering |
-| Experiments | Versioned data-only JSON, CLI, seeded structured candidate generation and timing scripts |
+| General semantics | Optional dense isometries, Knill–Laflamme checks, immutable Kraus channels, explicit Choi conversion, and fixed-encoding recovery SDP |
+| Evidence | Independently checked rank/logical certificates, Lean CSS witness theorem and bounded concrete replay |
+| Experiments | Versioned JSON, CLI, resumable SQLite search studies, seeded candidate generation and timing scripts |
 
 `distance.status == "exact"` denotes an exact finite search result. A stopped
 search reports a bound interval and a logical witness; it does not report an
@@ -84,6 +86,9 @@ python scripts/benchmark.py --sizes 3 5 10 20 > results/benchmark.jsonl
 python scripts/benchmark_sparse.py --size 1000 --degree 3 > results/sparse.jsonl
 python examples/structured_codes.py
 python examples/sparse_lifted.py
+python examples/family_analysis.py --manifest results/family.json
+qeclang family results/family.json --lift 31 --backend abelian
+qeclang study results/study.sqlite3 --trials 20 --strategy mutate --seed 7
 ```
 
 See [decoding methods](docs/decoding.md) for iterative decoder assumptions and
@@ -92,6 +97,17 @@ the distinction between syndrome convergence and logical success.
 Candidate records include construction parameters, seed, code, algorithm
 budgets, bound statuses and witnesses. These are candidates, not automatically
 novel or inequivalent codes. Generated results are ignored by Git.
+
+For optional general-noise experiments, see [channels](docs/channels.md) and
+[recovery optimization](docs/recovery.md). Run
+`python examples/recovery_sdp.py --noise amplitude_damping` after installing the
+`sdp` extra. Its primal/dual objectives and residuals are numerical evidence;
+conversion to a recovery channel requires an explicit repair policy when needed.
+
+[Family contracts](docs/structured_families.md), [study persistence](docs/search_studies.md),
+and [formal verification scope](docs/formal.md) describe the respective trust and
+resource boundaries. The abelian backends have separate field/component limits;
+pure power-of-two groups can still require full-size components.
 
 ## Repository map
 

@@ -1,0 +1,55 @@
+\section{Fixed-encoder channel recovery}
+
+For a fixed encoding isometry $V\in\mathbb C^{D\times K}$ and noise Kraus
+operators $N_a\in\mathbb C^{E\times D}$, set $A_a=N_aV$. A recovery to
+the logical space has Kraus operators $R_b\in\mathbb C^{K\times E}$.
+For the maximally mixed logical input, entanglement fidelity is
+\begin{equation}
+ F_e=\frac{1}{K^2}\sum_{a,b}|\operatorname{Tr}(R_bA_a)|^2.
+\end{equation}
+Optimizing recovery for a fixed encoding and noise model is a
+semidefinite program~\cite{fletcher2007}; this objective does not assert
+worst-case fidelity or optimize the encoding simultaneously.
+
+Use column-stacked vectorization, ordered as received space tensor
+logical output, and define
+\begin{equation}
+ J=\sum_b\operatorname{vec}_F(R_b)\operatorname{vec}_F(R_b)^\dagger,
+ \qquad
+ C=\frac{1}{K^2}\sum_a
+ \operatorname{vec}_F(A_a^\dagger)\operatorname{vec}_F(A_a^\dagger)^\dagger.
+\end{equation}
+The conjugation is essential:
+$\operatorname{vec}_F(A_a^\dagger)^\dagger\operatorname{vec}_F(R_b)
+=\operatorname{Tr}(R_bA_a)$. Thus the primal and dual are
+\begin{align}
+ \max_J\quad &\operatorname{Tr}(CJ)
+ &\text{subject to }&J\succeq0,\quad\operatorname{Tr}_{K}J=I_E,\\
+ \min_{Y=Y^\dagger}\quad &\operatorname{Tr}Y
+ &\text{subject to }&Y\otimes I_K-C\succeq0.
+\end{align}
+Indeed the Lagrangian is
+$\operatorname{Tr}Y+\operatorname{Tr}[(C-Y\otimes I_K)J]$.
+The primal has a strictly feasible point $I_E\otimes I_K/K$, so the
+finite-dimensional formulation has strong duality.
+
+The optional CVXPY backend implements this formulation for a fixed subspace
+encoder and numerically validated Kraus noise, solving primal and dual
+problems separately. It rejects unprepared gauge subsystems. A subsystem
+objective would require an explicitly specified gauge preparation. Treating all logical--gauge columns as protected
+logical states would change the subsystem objective. It is a dense
+small-system analysis, with Choi dimension $EK$; it does not supply a
+sparse qLDPC decoder or an extraction circuit.
+
+Numerical results must retain trace-preservation and Hermiticity
+residuals, minimum primal/dual-slack eigenvalues, solver statuses, and
+objective gaps. Solver values within tolerance are numerical evidence,
+not rigorous arithmetic bounds. If a recovery is extracted by spectral
+truncation, its trace preservation and achieved fidelity must be checked
+again. The implementation retains the raw Choi candidate without implicit repair.
+Its numerical-optimal status requires both solver optimality reports,
+independently acceptable residuals, and a small numerical gap; primal-only,
+inaccurate, invalid, and solver-error states remain distinct. Dense
+allocation guards do not bound solver workspace or elapsed time. Neither
+an optimum channel nor its Kraus decomposition supplies a fault-tolerant
+circuit realization.

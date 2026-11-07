@@ -1,0 +1,70 @@
+\section{Structured exact rank analysis}
+
+\subsection{Odd cyclic and abelian factors}
+For an odd cyclic order $L$, the polynomial $f=x^L+1$ over $\F$ is
+square-free: its derivative is $x^{L-1}$ and is coprime to $f$. If
+$f=\prod_i f_i$ has distinct irreducible factors of degrees $d_i$, then
+\begin{equation}
+ R=\F[x]/(f)\cong\prod_i \mathbb F_{2^{d_i}}.
+\end{equation}
+For a matrix $M$ over $R$, write $\rho(M)$ for its binary regular action.
+The decomposition respects the linear map, so
+\begin{equation}
+ \rank_{\F}\rho(M)=\sum_i d_i\,
+ \rank_{\mathbb F_{2^{d_i}}}(M\bmod f_i).
+\end{equation}
+The implementation verifies the irreducible factors and their product,
+then computes exact component ranks. This specializes the semisimple
+analysis of quasi-abelian codes~\cite[Appendices A--B]{panteleev2021}.
+
+For a product of odd cyclic groups, a finite splitting field contains all
+required character values. Frobenius-related characters have equal
+component rank, so the binary rank is the sum of one component rank per
+orbit multiplied by its orbit length. The backend verifies its splitting
+field and root order and enumerates the complete character orbits.
+Neither decomposition preserves physical Hamming weight; dimension
+analysis cannot be used as a distance-preserving code transformation.
+
+\subsection{Repeated-root cyclic rings}
+For any positive $L$, including even orders, elementary row and column
+operations over $\F[x]$ diagonalize a polynomial representative of $M$.
+These operations are unimodular and hence remain invertible modulo $f$.
+Ordered Smith divisibility conditions are unnecessary for computing rank.
+
+\begin{proposition}
+If the diagonal entries are $a_j$, including zeros, then
+\begin{equation}
+ \rank_{\F}\rho(M)=\sum_j\bigl(L-\deg\gcd(a_j,f)\bigr).
+\end{equation}
+\end{proposition}
+\begin{proof}
+For one entry, write $a=ga'$ and $f=gf'$ where $g=\gcd(a,f)$ and
+$\gcd(a',f')=1$. Multiplication by $a$ kills $h\bmod f$ exactly when
+$f'\mid h$. This kernel has dimension $\deg g$, giving the stated scalar
+rank by rank--nullity. The diagonal components add, and unimodular
+operations preserve rank after quotienting. For $a=0$, $g=f$ and the
+contribution is zero.
+\end{proof}
+
+Optional elementary-operation traces can be replayed without rerunning
+the diagonalization search. The verifier checks that the resulting
+matrix is diagonal and recomputes all gcd contributions. Polynomial
+degree growth can exceed a resource budget before completion; no partial
+rank is then reported. These are exact computational checks, not a Lean
+formalization of the polynomial algorithm.
+
+\subsection{Mixed-order abelian groups}
+Write each cyclic order as $L_i=p_i o_i$ with $p_i$ a power of two and
+$o_i$ odd. The group splits into its two-primary and odd parts. Evaluate
+only the odd part at a representative of each Frobenius character orbit;
+retain the regular action of the two-primary part over the splitting
+field. If $P=\prod_i p_i$ and $M$ is $m\times n$, each component matrix
+has dimensions $mP\times nP$. The binary rank is the orbit-weighted sum
+of those exact field ranks.
+
+This construction retains the repeated-root structure instead of treating
+it as a field. For a pure two-group, $P=|G|$ and the component is full size:
+there is no general expansion saving. Component axes/entries, character
+count, field degree, root-search candidates, and arithmetic operations
+have separate limits. All backends preserve the distinction between an
+exact result, unsupported structure, and exhausted resources.

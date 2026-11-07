@@ -1,61 +1,61 @@
-\section{Architecture and research milestones}
+\section{Architecture and reproducible research}
 
-The implementation starts with immutable Python values and exact packed
-binary rows, plus a sparse support-row representation with explicit guarded
-packed lowering. Sparse storage does not make exact elimination sparse.
-Bitwise XOR and parity give an inspectable reference backend.
-This does not imply optimal sparse asymptotics: elimination can fill in,
-and expanding structured lifts can dominate memory. Profiling should
-separate construction, expansion, validation, rank, distance, and decoding.
+\subsection{Representations and contracts}
+Immutable packed and sparse binary values provide an inspectable exact
+backend. Validated sparse CSS presentations expose syndromes and locality
+without triggering rank computation. General elimination can densify;
+structured ring methods therefore constitute separate capabilities with
+explicit hypotheses and resource bounds.
 
-A future expression layer should retain products, symmetry, and quotient
-relations until lowering is requested. Each lowering should carry source
-and target identifiers, assumptions, preservation claims, and a checkable
-certificate where possible. Algebraic equivalence must not silently imply
-preservation of physical weight or sparse measurement scheduling.
+Construction records retain ring seeds, action/physical-order conventions,
+and canonical presentation fingerprints. Cyclic family manifests retain
+Laurent templates independently of lift order and state the allowed
+parameter domain. Monomial collisions under specialization can only
+reduce incidence counts, giving uniform locality bounds from the template.
+This proves neither positive rate nor distance growth. The implemented
+manifest types cover specific constructions; they do not yet form a
+general-purpose optimizing construction language.
 
-The executable scope includes binary matrices, chain/CSS objects, signed
-stabilizer validation, subsystem modules with signed center sectors,
-structured finite constructions, and bounded analysis/decoder baselines.
-Sparse abelian group-algebra elements and matrices support shared lifted
-products before regular-representation expansion. A normalized min-sum
-decoder reuses sparse adjacency; optional reliability-ordered order-zero
-post-processing is separately resource guarded.
-Optional NumPy semantics checks finite isometries and operator
-Knill--Laflamme residuals; signed stabilizers can be lowered with an explicit
-dimension guard. Optional MILP analysis keeps solver evidence distinct
-from exact enumeration. Versioned JSON, a CLI, and seeded experiments
-support reproducibility. CSS transformations and validated chain maps
-expose induced homology actions; quasi-isomorphism alone carries no
-physical-distance guarantee. Wider
-semantic coverage is a design target. Prime-power qudits, noncommutative
-module constructions, scalable nonadditive simulation, bosonic analytic
-operators, and temporal protocol compilation require distinct extensions.
+CSS transformations and chain maps expose induced homology actions.
+Quasi-isomorphism preserves homology but carries no automatic physical
+weight guarantee. Future rewriting rules must distinguish algebraic
+identities, metric preservation, and sparse measurement presentation.
+No blanket zero-cost claim is made: validation, expansion, factorization,
+and backend conversion have visible costs.
 
-The implementation strategy is deliberately incremental. Keep the Python
-API stable while comparing packed kernels with sparse/dense native
-backends. Add optional symbolic adapters for mature computer-algebra
-systems, and numerical adapters for optimization. Adopt a compiler
-framework only once rewrite contracts and target workloads justify it.
-A GPU implementation can improve a suitable batch kernel; it cannot
-remove combinatorial hardness.
+\subsection{Resumable bounded studies}
+The SQLite study engine explores fixed-term scalar cyclic lifted-product
+seeds using deterministic random sampling or greedy support mutations.
+Trial-indexed randomness, exact configuration checks, source/runtime
+provenance, and transactional evaluation records support reproducible
+resumption. Cached records are reused only under the same construction
+and evaluation semantics. Presentation hashes do not remove equivalent
+codes described by different coordinates or seeds.
 
-For formal verification, begin with the chain condition, quotient
-dimension identities, commuting-block constructions, and witness
-checkers. Lean can support this program~\cite{demoura2021}, but a proof
-about abstract matrices does not automatically verify Python parsing or
-serialization. The trusted boundary must be stated explicitly.
+Eligibility requires available exact parameters and usable distance
+analysis with protected logicals. The recorded Pareto front maximizes
+logical dimension and conservative distance lower bounds while minimizing
+check weight and qubit incidence degree. Upper-bound witnesses never
+substitute for achieved distance. Zero-logical codes and skipped analyses
+are distinguished explicitly. This is a restricted experimental baseline,
+not evidence that an output code is novel or optimal.
 
-A reproducible discovery loop generates valid structured candidates,
-filters by cheap exact invariants, computes bounded distance evidence,
-and allocates decoding experiments to promising candidates. Every result
-should retain construction parameters and tool versions. An agent can
-suggest formulas, transformations, and conjectures; deterministic
-validators and proof checkers decide acceptance.
+Large campaigns require more than restarting a script. The current
+transaction encompasses evaluation and serializes writers; frontier
+construction is quadratic in distinct eligible evaluations. Those costs,
+distance-search budgets, and algebraic work limits must be reported
+alongside the scientific objective.
 
-The principal open engineering questions are whether symbolic family
-analysis can avoid repeated matrix expansion, which rewrites preserve
-weight and locality, how small certificates can make heterogeneous solver
-results auditable, and which finite-size improvements survive realistic
-extraction costs. These are research questions rather than claimed
-results of the initial implementation.
+\subsection{Research priorities}
+The next substantive improvements are stronger distance evidence with
+independent verification, controlled decoder comparisons, and correction
+experiments with explicit measurement/noise assumptions. Family search
+should exploit mathematical structure or validated bounds, and compare
+proposal strategies at equal budgets on held-out parameters.
+
+Prime-power qudits, noncommutative modules, bosonic analytic operators,
+and dynamical protocols remain distinct extensions. A native compiled
+kernel or GPU backend should follow a demonstrated bottleneck. A compiler
+framework becomes useful when transformation contracts and workloads
+justify it; it does not remove combinatorial hardness or replace a
+family-level mathematical proof.
