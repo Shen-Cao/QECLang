@@ -10,7 +10,9 @@ The recovery outputs logical states, so it includes decoding. It is not a
 worst-case fidelity, diamond-distance bound, noise threshold, or circuit-level
 fault-tolerance calculation. Joint optimization of encoding and recovery is
 outside this convex program. Subsystem isometries with nontrivial gauge factors
-are rejected until an explicit gauge preparation/objective is specified.
+require an explicit [gauge preparation](encoding.md). A fixed CPTP encoding
+channel is also accepted; its input dimension defines the protected logical
+dimension even when the encoding is irreversible.
 
 ## Convention and equations
 
@@ -30,6 +32,13 @@ Index `(p,l)` is `p*K+l`. Then
 F_e=\frac{1}{K^2}\sum_{a,b}|\operatorname{Tr}(R_b A_a)|^2
 =\operatorname{Tr}(CJ).
 \]
+
+For encoding Kraus operators E_s in place of one isometry, replace A_a with
+`A_(a,s)=N_a E_s` and sum over both indices in C. This includes the channel
+`rho -> V(rho tensor sigma_G)V†` for an explicitly initialized gauge state.
+It optimizes protection for that preparation, not arbitrary or correlated gauge
+inputs. Merely treating every logical-gauge column as a protected logical state
+would define a different objective.
 
 The primal maximizes Tr(CJ), subject to J positive semidefinite and its partial
 trace over logical output equal to the received identity. The dual minimizes
@@ -69,7 +78,9 @@ Choi and dual arrays have immutable byte backing. `summary()` excludes those
 arrays and is suitable for JSON experiment records.
 
 `max_choi_dimension` bounds K times the received dimension. `max_elements`
-bounds individual model/input/intermediate arrays. These do not bound the sum
+bounds each stored Kraus collection and individual model/intermediate arrays.
+`max_effective_kraus` bounds the product of encoding and noise Kraus counts
+before forming effective operators. These do not bound the sum
 of all simultaneously live arrays, CVXPY's canonicalization or solver workspace,
 or elapsed time. SCS defaults to `eps=1e-7,max_iters=10000` per solve; options can
 be supplied explicitly. Other selected solvers use their own defaults unless
@@ -101,6 +112,19 @@ print(recovery.conversion_report)
 `examples/recovery_sdp.py` emits compact diagnostic records and can explicitly
 request extraction with `--extract`. Zero/one probability endpoints, complex
 unitaries, rectangular encodings and output channels, exactly correctable error
-sets, solver failures, and budget limits have dedicated tests. General channel
-interchange, nontrivial gauge preparation, and rigorous SDP certificates remain
-separate extensions.
+sets, prepared gauge subsystems, solver failures, and budget limits have dedicated
+tests. General channel interchange, gauge-independent worst-case recovery, and
+rigorous SDP certificates remain separate extensions.
+
+For subsystem recovery, explicitly prepare the encoder before optimization:
+
+```python
+from qeclang.semantic import prepare_encoding, KrausChannel
+subsystem = IsometryCode((2, 2), np.eye(4), gauge_dimension=2)
+preparation = prepare_encoding(subsystem, np.eye(2)/2)
+result = optimize_recovery(preparation.channel, KrausChannel((np.eye(4),)))
+experiment_record = {"preparation": preparation.summary(), "recovery": result.summary()}
+```
+
+Retain both summaries: the encoding Kraus fingerprint in the recovery result
+does not by itself document the gauge initialization or any requested repair.

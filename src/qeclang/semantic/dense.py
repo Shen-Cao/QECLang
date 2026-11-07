@@ -42,31 +42,39 @@ class CorrectabilityResult:
     method: str = "numerical operator Knill-Laflamme"
 
 
+@dataclass(frozen=True, init=False, eq=False)
 class IsometryCode:
     """Embedding of logical tensor gauge space into a specified physical space.
 
     gauge_dimension=1 describes a subspace code. The local factorization is
     required because Hamming weight and locality are not properties of a bare
-    Hilbert space. Arrays are copied and made read-only.
+    Hilbert space. Attributes are frozen and arrays have immutable byte backing.
     """
 
+    physical_dimensions: tuple[int, ...]
+    gauge_dimension: int
+    tolerance: float
+    isometry: np.ndarray
+
     def __init__(self, physical_dimensions, isometry, *, gauge_dimension=1, tolerance=1e-10):
-        self.physical_dimensions = tuple(index(d) for d in physical_dimensions)
-        if not self.physical_dimensions or any(d < 1 for d in self.physical_dimensions):
+        dimensions = tuple(index(d) for d in physical_dimensions)
+        if not dimensions or any(d < 1 for d in dimensions):
             raise ValueError("physical dimensions must be positive")
-        self.gauge_dimension = index(gauge_dimension)
-        self.tolerance = _tolerance(tolerance)
+        gauge = index(gauge_dimension)
+        tol = _tolerance(tolerance)
         v = np.array(isometry, dtype=complex, copy=True)
-        if v.ndim != 2 or v.shape[0] != prod(self.physical_dimensions):
+        if v.ndim != 2 or v.shape[0] != prod(dimensions):
             raise ValueError("isometry shape does not match physical factorization")
-        if self.gauge_dimension < 1 or v.shape[1] < 1 or v.shape[1] % self.gauge_dimension:
+        if gauge < 1 or v.shape[1] < 1 or v.shape[1] % gauge:
             raise ValueError("columns must be a positive multiple of gauge dimension")
         if not np.isfinite(v).all():
             raise ValueError("isometry must be finite")
         if not np.allclose(v.conj().T @ v, np.eye(v.shape[1]), atol=tolerance, rtol=0):
             raise ValueError("columns must be orthonormal")
-        v.flags.writeable = False
-        self.isometry = v
+        object.__setattr__(self, "physical_dimensions", dimensions)
+        object.__setattr__(self, "gauge_dimension", gauge)
+        object.__setattr__(self, "tolerance", tol)
+        object.__setattr__(self, "isometry", np.frombuffer(v.tobytes(), dtype=v.dtype).reshape(v.shape))
 
     @property
     def logical_dimension(self):

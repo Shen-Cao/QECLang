@@ -1,10 +1,22 @@
 import pytest
+from dataclasses import FrozenInstanceError
 
 from qeclang.codes import Pauli
 from qeclang.constructions import five_qubit, steane
 
 np = pytest.importorskip("numpy")
 from qeclang.semantic import IsometryCode, from_stabilizer, pauli_matrix  # noqa: E402
+
+
+def test_isometry_data_and_metadata_are_immutable():
+    source = np.eye(2)
+    code = IsometryCode((2,), source)
+    source[0, 0] = 0
+    assert code.isometry[0, 0] == 1
+    with pytest.raises(ValueError):
+        code.isometry.flags.writeable = True
+    with pytest.raises(FrozenInstanceError):
+        code.tolerance = float("inf")
 
 
 def test_five_qubit_knill_laflamme():

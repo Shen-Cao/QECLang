@@ -5,7 +5,7 @@ import pytest
 np = pytest.importorskip("numpy")
 cp = pytest.importorskip("cvxpy")
 from qeclang.recovery import optimize_recovery, recovery_objective  # noqa: E402
-from qeclang.semantic import IsometryCode  # noqa: E402
+from qeclang.semantic import IsometryCode, amplitude_damping, prepare_encoding  # noqa: E402
 from qeclang.semantic.channels import (KrausChannel, dephasing, entanglement_fidelity,  # noqa: E402
                                       validate_choi)
 
@@ -136,3 +136,34 @@ def test_input_scope_and_preallocation_guards(monkeypatch):
                     {"solver_options": {"solver": "SCS"}}, {"max_elements": True}):
         with pytest.raises(ValueError):
             optimize_recovery(code, noise, **options)
+
+
+def test_fixed_channel_encoder_matches_composed_noise():
+    encoding, noise = amplitude_damping(0.2), dephasing(0.3)
+    direct = recovery_objective(encoding, noise)
+    composed = recovery_objective(identity_code(), encoding.then(noise))
+    assert np.allclose(direct, composed, atol=1e-14, rtol=0)
+    result = optimize_recovery(encoding, noise)
+    reference = optimize_recovery(identity_code(), encoding.then(noise))
+    assert result.status == reference.status == "numerical_optimal"
+    assert result.logical_dimension == 2
+    assert result.primal_objective == pytest.approx(reference.primal_objective, abs=1e-7)
+    assert result.provenance["encoding_kind"] == "kraus_channel"
+
+
+def test_protected_subsystem_fidelity_uses_explicit_gauge_preparation():
+    subsystem = IsometryCode((2, 2), np.eye(4), gauge_dimension=2)
+    discard_gauge = KrausChannel(([[1, 0, 0, 0], [0, 0, 1, 0]],
+                                  [[0, 1, 0, 0], [0, 0, 0, 1]]))
+    discard_logical = KrausChannel(([[1, 0, 0, 0], [0, 1, 0, 0]],
+                                    [[0, 0, 1, 0], [0, 0, 0, 1]]))
+    for state in (np.diag([1, 0]), np.array([[0.6, 0.1j], [-0.1j, 0.4]])):
+        preparation = prepare_encoding(subsystem, state)
+        good = optimize_recovery(preparation.channel, discard_gauge)
+        lost = optimize_recovery(preparation.channel, discard_logical)
+        assert good.logical_dimension == lost.logical_dimension == 2
+        assert_optimum(good, 1)
+        assert_optimum(lost, 0.25)
+        assert entanglement_fidelity(preparation.channel.then(discard_gauge)) == pytest.approx(1)
+    with pytest.raises(ValueError, match="max_effective_kraus"):
+        optimize_recovery(preparation.channel, discard_gauge, max_effective_kraus=3)

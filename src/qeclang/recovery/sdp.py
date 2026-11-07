@@ -36,41 +36,61 @@ def _fingerprint(matrices):
     return digest.hexdigest()
 
 
-def recovery_objective(code, noise, *, max_choi_dimension=256, max_elements=1_000_000):
-    """Build C=Σ vec_F((Na V)†) vec_F((Na V)†)† / K².
+def _encoding_data(code):
+    from qeclang.semantic.channels import KrausChannel
+    if isinstance(code, KrausChannel):
+        return code.kraus, code.input_dim, code.output_dim, code.tolerance
+    if not isinstance(code, IsometryCode):
+        raise TypeError("encoding must be IsometryCode or KrausChannel")
+    if code.gauge_dimension != 1:
+        raise ValueError("subsystem recovery requires an explicit gauge state via prepare_encoding")
+    return (code.isometry,), code.logical_dimension, code.isometry.shape[0], code.tolerance
+
+
+def recovery_objective(code, noise, *, max_choi_dimension=256, max_elements=1_000_000,
+                       max_effective_kraus=4096):
+    """Build C=Σ_as vec_F((Na Es)†) vec_F((Na Es)†)† / K².
 
     The Choi index is received_index*K+logical_index. ``max_elements`` bounds
-    the coefficient matrix and each dense input/intermediate payload separately,
-    not total solver workspace. Inputs are rechecked at their existing tolerance.
+    each Kraus collection, the coefficient matrix and each working array, not
+    total solver workspace. The fixed encoding can be a subspace isometry or a
+    CPTP KrausChannel (including explicitly prepared subsystem gauge states).
+    Inputs are rechecked at their existing tolerance.
     """
     from qeclang.semantic.channels import KrausChannel
-    if not isinstance(code, IsometryCode) or not isinstance(noise, KrausChannel):
-        raise TypeError("recovery requires IsometryCode and KrausChannel")
-    if code.gauge_dimension != 1:
-        raise ValueError("subsystem recovery requires an explicit gauge preparation; only subspace encoding is supported")
+    if not isinstance(noise, KrausChannel):
+        raise TypeError("noise must be KrausChannel")
+    encoders, k, physical, encoding_tolerance = _encoding_data(code)
+    if not isfinite(encoding_tolerance) or encoding_tolerance <= 0:
+        raise ValueError("encoding tolerance must be finite and positive")
     limit = nonnegative_integer(max_choi_dimension, "max_choi_dimension")
     elements = nonnegative_integer(max_elements, "max_elements")
-    v = code.isometry
-    k, received = code.logical_dimension, noise.output_dim
+    count = nonnegative_integer(max_effective_kraus, "max_effective_kraus")
+    if len(encoders) * len(noise.kraus) > count:
+        raise ValueError("encoding-noise composition exceeds max_effective_kraus")
+    received = noise.output_dim
     dimension = k * received
-    if (dimension > limit or max(dimension**2, v.size, noise.input_dim**2,
+    if (dimension > limit or max(dimension**2, sum(e.size for e in encoders),
+                                 sum(n.size for n in noise.kraus), noise.input_dim**2,
                                  k**2, received*k) > elements):
         raise ValueError("recovery model exceeds dense allocation limits")
-    if noise.input_dim != v.shape[0]:
+    if noise.input_dim != physical:
         raise ValueError("noise input dimension does not match encoded physical space")
-    _finite(v)
+    encoding_gram = np.zeros((k, k), dtype=complex)
     with np.errstate(over="ignore", invalid="ignore"):
-        gram = _finite(v.conj().T @ v)
-    if np.max(np.abs(gram - np.eye(k))) > code.tolerance:
-        raise ValueError("encoding is not isometric at its declared tolerance")
+        for encoder in encoders:
+            encoding_gram = _finite(encoding_gram + _finite(encoder).conj().T @ encoder)
+    if np.max(np.abs(encoding_gram - np.eye(k))) > encoding_tolerance:
+        raise ValueError("encoding is not trace preserving at its declared tolerance")
     coefficient = np.zeros((dimension, dimension), dtype=complex)
     gram_noise = np.zeros((noise.input_dim, noise.input_dim), dtype=complex)
     with np.errstate(over="ignore", invalid="ignore"):
         for operator in noise.kraus:
             gram_noise = _finite(gram_noise + operator.conj().T @ operator)
-            effective = _finite(operator @ v)
-            vector = effective.conj().T.reshape(-1, order="F") / k
-            coefficient = _finite(coefficient + np.outer(vector, vector.conj()))
+            for encoder in encoders:
+                effective = _finite(operator @ encoder)
+                vector = effective.conj().T.reshape(-1, order="F") / k
+                coefficient = _finite(coefficient + np.outer(vector, vector.conj()))
     if np.max(np.abs(gram_noise - np.eye(noise.input_dim))) > noise.tolerance:
         raise ValueError("noise is not trace preserving at its declared tolerance")
     return _snapshot(coefficient)
@@ -108,9 +128,11 @@ def _options(solver, supplied):
 
 def optimize_recovery(code, noise, *, solver="SCS", solver_options=None,
                       validation_tolerance=1e-6, solve_dual=True,
-                      max_choi_dimension=256, max_elements=1_000_000):
+                      max_choi_dimension=256, max_elements=1_000_000,
+                      max_effective_kraus=4096):
     """Solve primal and optionally dual SDPs, then independently check residuals.
 
+    The fixed encoder is a subspace IsometryCode or an explicit KrausChannel.
     Recovery maps received physical states into logical states. The primal is
     max Tr(CJ), J>=0, Tr_output J=I; the dual is min Tr(Y), Y⊗I-C>=0.
     No solver fallback or repair is implicit. SCS defaults to 10,000 iterations;
@@ -126,22 +148,26 @@ def optimize_recovery(code, noise, *, solver="SCS", solver_options=None,
         raise ValueError("solve_dual must be boolean")
     options = _options(solver, solver_options)
     coefficient = recovery_objective(code, noise, max_choi_dimension=max_choi_dimension,
-                                      max_elements=max_elements)
+                                      max_elements=max_elements,
+                                      max_effective_kraus=max_effective_kraus)
     try:
         import cvxpy as cp
     except ImportError as error:
         raise ImportError("recovery optimization requires qeclang[sdp]") from error
-    k, received = code.logical_dimension, noise.output_dim
+    encoders, k, _, _ = _encoding_data(code)
+    received = noise.output_dim
     try:
         solver_version = version({"SDPA": "sdpa-python"}.get(solver, solver.lower()))
     except PackageNotFoundError:
         solver_version = None
     provenance = {"qeclang_version": __version__, "cvxpy_version": cp.__version__,
                   "numpy_version": np.__version__, "solver_version": solver_version,
-                  "encoding_sha256": _fingerprint((code.isometry,)),
+                  "encoding_sha256": _fingerprint(encoders),
+                  "encoding_kind": "isometry" if isinstance(code, IsometryCode) else "kraus_channel",
                   "kraus_representation_sha256": _fingerprint(noise.kraus),
                   "solver_options": options, "solve_dual": solve_dual,
                   "max_choi_dimension": max_choi_dimension, "max_elements": max_elements,
+                  "max_effective_kraus": max_effective_kraus,
                   "input_state": "maximally_mixed_logical", "choi_order": "received_tensor_logical"}
     result = RecoveryResult("solver_error", solver, k, received, validation_tolerance,
                             provenance=provenance)
