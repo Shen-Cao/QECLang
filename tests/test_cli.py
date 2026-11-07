@@ -33,6 +33,19 @@ def test_study_commands(capsys, tmp_path):
     assert json.loads(capsys.readouterr().out)["trials"] == 4
 
 
+def test_portfolio_and_zero_noise(capsys):
+    assert main(["distance", "--method", "portfolio"]) == 0
+    results = json.loads(capsys.readouterr().out)
+    assert results["x"]["status"] == "exact"
+    assert results["x"]["lower_bound"] == results["x"]["upper_bound"] == 3
+    assert main(["distance", "--code", "five", "--method", "portfolio"]) == 2
+    assert "CSS" in capsys.readouterr().err
+    assert main(["distance", "--milp"]) == 2
+    assert "portfolio" in capsys.readouterr().err
+    assert main(["simulate", "--decoder", "bp", "--probability", "0", "--trials", "10"]) == 0
+    assert json.loads(capsys.readouterr().out)["failures"] == 0
+
+
 def test_study_cli_accepts_mixed_backend_limits(capsys, tmp_path):
     database = str(tmp_path / "mixed.sqlite3")
     args = ["study", database, "--lift", "4", "--terms", "2", "--trials", "1",

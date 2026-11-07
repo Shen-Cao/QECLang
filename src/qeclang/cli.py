@@ -39,6 +39,12 @@ def main(argv=None):
         if name in ("distance", "simulate"):
             sub.add_argument("--max-weight", type=int, default=3)
             sub.add_argument("--max-candidates", type=int, default=100_000)
+        if name == "distance":
+            sub.add_argument("--method", choices=("enumerate", "portfolio"), default="enumerate")
+            sub.add_argument("--heuristic-seed", type=int, default=0)
+            sub.add_argument("--heuristic-restarts", type=int, default=32)
+            sub.add_argument("--heuristic-evaluations", type=int, default=10_000)
+            sub.add_argument("--milp", action="store_true")
         if name == "export":
             sub.add_argument("output")
         if name == "simulate":
@@ -78,8 +84,18 @@ def main(argv=None):
                   {"n": code.n, "k": code.k, "name": code.name})
         elif args.command == "distance":
             limits = {"max_weight": args.max_weight, "max_candidates": args.max_candidates}
+            if args.milp and args.method != "portfolio":
+                raise ValueError("--milp requires --method portfolio")
+            if args.method == "portfolio" and not isinstance(code, CSSCode):
+                raise ValueError("distance portfolio requires a CSS code")
             if isinstance(code, CSSCode):
-                _json({sector: asdict(css_distance(code, sector, **limits)) for sector in ("x", "z")})
+                method = css_distance
+                if args.method == "portfolio":
+                    from qeclang.analysis import css_distance_portfolio
+                    method = css_distance_portfolio
+                    limits.update(seed=args.heuristic_seed, restarts=args.heuristic_restarts,
+                                  max_evaluations=args.heuristic_evaluations, use_milp=args.milp)
+                _json({sector: asdict(method(code, sector, **limits)) for sector in ("x", "z")})
             else:
                 from qeclang.codes import StabilizerCode
                 if not isinstance(code, StabilizerCode):
@@ -100,7 +116,7 @@ def main(argv=None):
                                              seed=args.seed, max_weight=args.max_weight,
                                              max_candidates_per_sector=args.max_candidates,
                                              decoder=decoder)))
-    except (ValueError, TypeError, OSError, sqlite3.Error) as error:
+    except (ValueError, TypeError, OSError, sqlite3.Error, ImportError) as error:
         print(f"qeclang: {error}", file=sys.stderr)
         return 2
     return 0
