@@ -27,7 +27,8 @@ def _json(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    from qeclang import cli_structured, cli_study
+    from qeclang import cli_circuits, cli_structured, cli_study
+    cli_circuits.register(commands)
     cli_structured.register(commands)
     cli_study.register(commands)
     for name in ("inspect", "distance", "export", "simulate"):
@@ -64,6 +65,9 @@ def main(argv=None):
     search.add_argument("--max-candidates", type=int, default=10_000)
     args = parser.parse_args(argv)
     try:
+        if args.command == "circuit-memory":
+            _json(cli_circuits.run(args))
+            return 0
         if args.command in ("study", "study-results"):
             _json(cli_study.run(args))
             return 0
