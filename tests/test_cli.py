@@ -31,3 +31,14 @@ def test_study_commands(capsys, tmp_path):
     assert json.loads(capsys.readouterr().out)["trials"] == 4
     assert main(["study-results", database]) == 0
     assert json.loads(capsys.readouterr().out)["trials"] == 4
+
+
+def test_study_cli_accepts_mixed_backend_limits(capsys, tmp_path):
+    database = str(tmp_path / "mixed.sqlite3")
+    args = ["study", database, "--lift", "4", "--terms", "2", "--trials", "1",
+            "--backend", "mixed-abelian", "--max-component-axis", "1"]
+    assert main(args) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["trials"] == 1 and not result["pareto"]
+    assert main(["study-results", database]) == 0
+    assert json.loads(capsys.readouterr().out)["trials"] == 1

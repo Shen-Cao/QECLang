@@ -129,6 +129,27 @@ def test_polynomial_even_backend_and_lower_bound_objective(tmp_path):
     assert evaluation["objective"][1] == 1
 
 
+@pytest.mark.parametrize("backend,lift", [("abelian", 3), ("mixed-abelian", 4)])
+def test_studies_accept_abelian_backends_and_persist_budgets(tmp_path, backend, lift):
+    path = tmp_path / "abelian.sqlite"
+    config = StudyConfig(lift=lift, terms=2, backend=backend, max_candidates=0)
+    result = run_study(path, config, target_trials=1)
+    assert result.pareto[0]["evaluation"]["parameters"]["method"] == backend
+    assert result.pareto[0]["evaluation"]["parameters"]["status"] == "exact"
+    with pytest.raises(ValueError, match="mismatch"):
+        run_study(path, replace(config, max_component_axis=99), target_trials=2)
+
+
+def test_distance_expansion_respects_configured_axis_budget(tmp_path):
+    path = tmp_path / "axis.sqlite"
+    config = StudyConfig(lift=3, terms=0, max_sites=5)
+    result = run_study(path, config, target_trials=1)
+    assert not result.pareto
+    evaluation = json.loads(database_rows(path)["evaluations"][0][4])
+    assert evaluation["parameters"]["status"] == "exact"
+    assert evaluation["distance_status"] == "expansion_budget_exhausted"
+
+
 def test_pareto_never_uses_upper_bounds():
     def record(key, objective, upper):
         return {"cache_key": key, "evaluation": {"objective": objective,

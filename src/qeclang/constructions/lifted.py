@@ -77,12 +77,18 @@ class LiftedProduct:
                         ring_kron(a.adjoint(), identity(b.nrows)))
         return hx, hz
 
-    def lower(self, *, max_bits=100_000_000, max_blocks=1_000_000):
+    def lower(self, *, max_bits=100_000_000, max_blocks=1_000_000, max_sites=1_000_000):
+        """Expand with explicit axis and combined check/validation payload limits."""
         limit = nonnegative_integer(max_bits, "max_bits")
-        if self.n * sum(self.check_counts) > limit:
+        sites = nonnegative_integer(max_sites, "max_sites")
+        mx, mz = self.check_counts
+        if max(self.n, mx, mz) > sites:
+            raise ValueError("lifted product exceeds max_sites")
+        if self.n * (mx + mz) + mx * mz > limit:
             raise ValueError("lifted product exceeds max_bits")
         hx, hz = self.symbolic_checks(max_blocks=max_blocks)
-        return CSSCode(hx.lower(max_bits=limit), hz.lower(max_bits=limit),
+        return CSSCode(hx.lower(max_bits=limit, max_sites=sites),
+                       hz.lower(max_bits=limit, max_sites=sites),
                        name="commutative lifted product")
 
     def sparse_checks(self, *, max_nonzeros=10_000_000, max_sites=1_000_000,

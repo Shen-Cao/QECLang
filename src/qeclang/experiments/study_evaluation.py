@@ -7,7 +7,7 @@ import platform
 from qeclang import __version__
 from qeclang.analysis.certificates import certify_css_logical, verify_css_logical
 from qeclang.analysis.distance import css_distance
-from qeclang.analysis.structured import analyze_lifted
+from qeclang.analysis.structured import BACKENDS, analyze_lifted
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,13 @@ class StudyConfig:
     max_bits: int = 10_000_000
     max_polynomial_degree: int = 4096
     max_operations: int = 100_000
+    max_sites: int = 1_000_000
+    max_characters: int = 10_000
+    max_field_degree: int = 64
+    max_field_candidates: int = 4096
+    max_factors: int = 16
+    max_component_entries: int = 1_000_000
+    max_component_axis: int = 10_000
     max_distance_n: int = 128
     max_weight: int = 2
     max_candidates: int = 100_000
@@ -42,8 +49,8 @@ class StudyConfig:
             raise ValueError("lift/term count exceeds proposal domain")
         if self.strategy not in ("random", "mutate"):
             raise ValueError("strategy must be random or mutate")
-        if self.backend not in ("crt", "polynomial", "packed"):
-            raise ValueError("backend must be crt, polynomial, or packed")
+        if self.backend not in BACKENDS:
+            raise ValueError(f"backend must be one of {BACKENDS}")
         if self.restart_interval == 0:
             raise ValueError("restart_interval must be positive")
 
@@ -75,7 +82,11 @@ def evaluate_candidate(construction, config: StudyConfig):
         construction, backend=config.backend, max_degree=config.max_degree,
         max_steps=config.max_steps, max_entries=config.max_entries,
         max_blocks=config.max_blocks, max_bits=config.max_bits,
-        max_polynomial_degree=config.max_polynomial_degree, max_operations=config.max_operations)
+        max_polynomial_degree=config.max_polynomial_degree, max_operations=config.max_operations,
+        max_sites=config.max_sites, max_characters=config.max_characters,
+        max_field_degree=config.max_field_degree, max_field_candidates=config.max_field_candidates,
+        max_factors=config.max_factors, max_component_entries=config.max_component_entries,
+        max_component_axis=config.max_component_axis)
     locality = asdict(construction.locality())
     result = {"parameters": asdict(parameters), "locality": locality,
               "distance_status": None, "distance_x": None, "distance_z": None,
@@ -90,10 +101,12 @@ def evaluate_candidate(construction, config: StudyConfig):
         result["distance_status"] = "size_limit"
         return result
     mx, mz = construction.check_counts
-    if construction.n * (mx + mz) + mx * mz > config.max_bits:
+    if (construction.n * (mx + mz) + mx * mz > config.max_bits or
+            max(construction.n, mx, mz) > config.max_sites):
         result["distance_status"] = "expansion_budget_exhausted"
         return result
-    code = construction.lower(max_bits=config.max_bits, max_blocks=config.max_blocks)
+    code = construction.lower(max_bits=config.max_bits, max_blocks=config.max_blocks,
+                              max_sites=config.max_sites)
     if code.k != parameters.k:
         raise ArithmeticError("symbolic and packed dimensions disagree")
     for sector in ("x", "z"):
