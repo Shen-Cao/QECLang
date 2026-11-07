@@ -13,6 +13,7 @@ dependencies = []
 [project.optional-dependencies]
 numeric = ["numpy>=1.24", "scipy>=1.11"]
 sdp = ["numpy>=1.24", "cvxpy>=1.4", "scs>=3.2"]
+circuits = ["numpy>=1.24", "stim==1.16.0"]
 dev = ["pytest>=8", "ruff>=0.9", "numpy>=1.24", "scipy>=1.11"]
 
 [project.scripts]
