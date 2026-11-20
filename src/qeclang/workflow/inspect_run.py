@@ -18,6 +18,7 @@ class InspectionLimits:
     max_row_map_work: int = 1_000_000
     max_exclusion_verify_steps: int = 1_000_000
     max_exclusion_indices: int = 100_000
+    max_interval_transport_work: int = 1_000_000
     max_blocks: int = 100_000
     max_symbolic_terms: int = 100_000
     max_lift_degree: int = 512
@@ -30,7 +31,7 @@ class InspectionLimits:
     def __post_init__(self):
         for value in (self.max_relation_checks, self.max_certificates, self.max_rank_steps,
                       self.max_lift_comparison_units, self.max_row_map_work, self.max_exclusion_verify_steps,
-                      self.max_exclusion_indices, self.max_blocks, self.max_symbolic_terms, self.max_lift_degree,
+                      self.max_exclusion_indices, self.max_interval_transport_work, self.max_blocks, self.max_symbolic_terms, self.max_lift_degree,
                       self.max_polynomial_degree, self.max_polynomial_operations):
             if type(value) is not int or value < 0:
                 raise ValueError("inspection counters must be nonnegative integers")
@@ -84,7 +85,8 @@ class _Reader:
         self.imports = ImportBudget(max_artifact_bytes=limits.artifacts.max_bytes,
                                     max_validation_work=limits.artifacts.max_validation_work)
         self.lifts = LiftInspection(limits.max_rank_steps, limits.max_lift_comparison_units)
-        self.counts = {'relation_checks': 0, 'certificates': 0, 'row_map_work': 0, 'exclusion_verify_steps': 0}
+        self.counts = {'relation_checks': 0, 'certificates': 0, 'row_map_work': 0, 'exclusion_verify_steps': 0,
+                       'interval_transport_work': 0}
         self.checked_exclusions = set()
         self.checked_intervals = set()
         self.prefix_nodes = ()
@@ -183,7 +185,7 @@ def inspect_run(program: Program, record, *, limits=InspectionLimits(), allow_pr
     structured = any(n.op.startswith('lift.') for n in program.nodes)
     scope = ('based_relations_css_upper_witnesses_and_traced_ranks' if structured
              else 'based_relations_and_css_upper_witnesses')
-    if any(n.op in ('css.exclude', 'css.combine_distance') for n in program.nodes):
+    if any(n.result_type in ('exclusion', 'distance_claim') for n in program.nodes):
         scope = 'declared_workflow_relations_and_explicit_proof_premises'
     checked_nodes = {c['node'] for c in claims}
     inspected_nodes = ({node.id for node in program.nodes} if status == 'checked'
@@ -199,7 +201,7 @@ def inspect_run(program: Program, record, *, limits=InspectionLimits(), allow_pr
     if status == 'checked_prefix':
         result.update(checked_prefix_nodes=list(reader.prefix_nodes), unverified_stop=reader.stop.copy())
         result['unverified'].extend(('stop_cause', 'stop_spend'))
-    if any(n.id in inspected_nodes and n.op == 'css.import_witness' and 'origin' in n.params
+    if any(n.id in inspected_nodes and n.op in ('css.import_witness', 'css.import_exclusion') and 'origin' in n.params
            for n in program.nodes):
         result['unverified'].append('witness_origin_metadata')
     return result

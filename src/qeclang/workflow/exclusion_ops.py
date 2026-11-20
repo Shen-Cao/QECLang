@@ -38,15 +38,22 @@ def execute_exclusion(op, args, params, ledger):
     code = args[0]
     if op == 'css.full_distance':
         return combine_sectors(*args)
-    options = dict(max_axis=ledger.limits.max_axis, max_bits=ledger.limits.max_basis_bits,
+    if op == 'css.transport_distance':
+        from .distance_transport import transport_interval_conclusion, transport_interval_work
+        ledger.charge('transports', 1)
+        work = transport_interval_work(args[0], args[1], params, max_axis=ledger.limits.max_axis)
+        ledger.charge('interval_transport_work', work)
+        return transport_interval_conclusion(*args, params, max_axis=ledger.limits.max_axis, max_work=work)
+    options = dict(max_axis=ledger.limits.max_axis, max_bits=ledger.limits.max_exclusion_bits,
                    max_indices=ledger.limits.max_exclusion_indices)
     if op == 'css.exclude':
+        options['max_bits'] = min(options['max_bits'], ledger.limits.max_basis_bits)
         result = certify_low_weight(code, params['sector'], through=params['through'],
                                     max_steps=min(params['max_steps'], ledger.remaining('exclusion_steps')),
                                     **options)
         ledger.charge('exclusion_steps', result['steps'])
         return result
-    _, exclusion, upper = args
+    exclusion = params['record'] if op == 'css.import_exclusion' else args[1]
     if exclusion['status'] != 'excluded':
         raise UnavailableEvidence('combining distance bounds requires a completed exclusion proof')
     remaining = ledger.remaining('exclusion_verify_steps')
@@ -54,7 +61,12 @@ def execute_exclusion(op, args, params, ledger):
     ledger.charge('exclusion_verify_steps', review.steps)
     if review.status == 'budget_exhausted':
         raise _VerificationLimit(review.reason or 'low-weight verification limit exceeded')
-    if (review.status != 'checked_exclusion' or upper['kind'] != 'css_logical'
+    if review.status != 'checked_exclusion':
+        raise RelationError('low-weight exclusion failed independent verification')
+    if op == 'css.import_exclusion':
+        return exclusion
+    upper = args[2]
+    if (upper['kind'] != 'css_logical'
             or not verify_certificate_record(code, upper, max_axis=code.n, max_bits=2*code.n)):
         raise RelationError('distance premises failed independent verification')
     return _payload(code, exclusion, upper)
@@ -69,8 +81,12 @@ class _VerificationLimit(BudgetExceeded):
 def inspect_exclusion(node, code, record, key, reader):
     from qeclang.analysis.low_weight import check_low_weight
     params = node.params
-    if (record['sector'] != node.sector or record['through'] != params['through']
-            or record['source'] != presentation_fingerprint(code) or record['steps'] > params['max_steps']):
+    if node.op == 'css.import_exclusion':
+        if record != params['record'] or record['status'] != 'excluded':
+            raise RelationError('saved exclusion differs from the supplied input')
+    elif record['through'] != params['through'] or record['steps'] > params['max_steps']:
+        raise RelationError('low-weight report differs from its request')
+    if (record['sector'] != node.sector or record['source'] != presentation_fingerprint(code)):
         raise RelationError('low-weight report differs from its request or source')
     review = check_low_weight(code, record, max_steps=reader.limits.max_exclusion_verify_steps
                               - reader.counts['exclusion_verify_steps'],

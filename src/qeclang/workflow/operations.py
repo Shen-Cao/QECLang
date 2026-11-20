@@ -40,7 +40,7 @@ def evaluate(op, args, params, ledger):
         return _literal(params, ledger)
     if op in ('css.import_witness', 'css.rebase_witness'):
         return apply_reuse(op, args, params, ledger)
-    if op in ('css.exclude', 'css.combine_distance', 'css.full_distance'):
+    if op in ('css.exclude', 'css.combine_distance', 'css.full_distance', 'css.import_exclusion', 'css.transport_distance'):
         from .exclusion_ops import execute_exclusion
         return execute_exclusion(op, args, params, ledger)
     source = args[0]

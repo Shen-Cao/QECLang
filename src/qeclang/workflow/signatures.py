@@ -3,11 +3,12 @@
 This module checks finite data and nominal provenance only. Code admission,
 row identities, witness parity and exclusion mathematics remain runtime duties.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 import re
 from types import MappingProxyType
 
-from .json_input import integer as _integer
+from .json_input import JSONLimits, integer as _integer
+from .low_weight_payload import exclusion_payload
 from .lift_types import construction_limits, validate_lift_literal, validate_parameter_request
 
 _SIGNATURES = MappingProxyType({
@@ -28,6 +29,8 @@ _SIGNATURES = MappingProxyType({
     "css.exclude": (("css",), "exclusion"),
     "css.combine_distance": (("css", "exclusion", "witness"), "distance_claim"),
     "css.full_distance": (("css", "distance_claim", "distance_claim"), "distance_claim"),
+    "css.import_exclusion": (("css",), "exclusion"),
+    "css.transport_distance": (("css", "css", "distance_claim"), "distance_claim"),
 })
 _ID = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\Z")
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -89,6 +92,13 @@ def _permutation(value, n):
         seen.add(site)
 
 
+def _origin(value, limits):
+    require_fields(value, ("bundle_id", "node"))
+    if type(value["bundle_id"]) is not str or _DIGEST.fullmatch(value["bundle_id"]) is None:
+        raise ValueError("origin bundle_id must be a lowercase SHA-256 digest")
+    identifier(value["node"], limits)
+
+
 def _imported_witness(params, n, limits):
     """Check certificate/origin syntax without source hashing or Pauli parity."""
     require_fields(params, ("certificate",), ("origin",))
@@ -114,12 +124,44 @@ def _imported_witness(params, n, limits):
                 or _WORD.fullmatch(value) is None or int(value, 16).bit_length() > n):
             raise ValueError("certificate words must be canonical hexadecimal within physical width")
     if "origin" in params:
-        origin = params["origin"]
-        require_fields(origin, ("bundle_id", "node"))
-        if type(origin["bundle_id"]) is not str or _DIGEST.fullmatch(origin["bundle_id"]) is None:
-            raise ValueError("origin bundle_id must be a lowercase SHA-256 digest")
-        identifier(origin["node"], limits)
+        _origin(params["origin"], limits)
     return sector
+
+
+def _imported_exclusion(params, source, limits):
+    """Admit bounded coefficient syntax, not exclusion or source-ID mathematics."""
+    require_fields(params, ("record",), ("origin",))
+    record = params["record"]
+    admission = JSONLimits(**{item.name: getattr(limits, item.name) for item in fields(JSONLimits)})
+    exclusion_payload(record, limits=admission)
+    if record["status"] != "excluded":
+        raise ValueError("css.import_exclusion requires an excluded-only record")
+    if len(record["memberships"]) > source.n:
+        raise ValueError("membership row count exceeds the source physical width")
+    count = source.mx if record["sector"] == "x" else source.mz
+    for support in record["memberships"]:
+        if len(support) > count or any(index >= count for index in support):
+            raise ValueError("membership index exceeds original same-sector check count")
+    if "origin" in params:
+        _origin(params["origin"], limits)
+    return record["sector"]
+
+
+def _distance_relation(params, source, target, limits):
+    if type(params) is not dict:
+        raise ValueError("distance transport parameters must be an object")
+    if params.get("relation") == "permutation":
+        require_fields(params, ("relation", "permutation"))
+        _permutation(params["permutation"], source.n)
+        if (source.mx, source.mz) != (target.mx, target.mz):
+            raise ValueError("permutation transport requires matching retained check counts")
+    elif params.get("relation") == "generator_spaces":
+        from .row_equivalence import validate_map_supports
+        require_fields(params, ("relation", "maps"))
+        validate_map_supports(params["maps"], (source.mx, source.mz), (target.mx, target.mz),
+                              max_rows=limits.max_payload_items, max_indices=limits.max_map_entries)
+    else:
+        raise ValueError("distance transport relation must be permutation or generator_spaces")
 
 
 @dataclass(frozen=True)
@@ -179,6 +221,17 @@ def derive_node_type(op, args, params, limits):
             raise ValueError("through must be exactly one or two")
         _integer(params["max_steps"], "max_steps")
         code_id, sector = args[0].id, params["sector"]
+    elif op == "css.import_exclusion":
+        sector = _imported_exclusion(params, args[0], limits)
+        code_id = args[0].id
+    elif op == "css.transport_distance":
+        source, target, claim = args
+        if source.n != target.n or claim.code_id != source.id:
+            raise ValueError("distance transport requires equal physical widths and a source-bound claim")
+        if claim.sector not in ("x", "z", "pauli"):
+            raise ValueError("distance transport requires an instance sector or full-distance claim")
+        _distance_relation(params, source, target, limits)
+        code_id, sector, mx, mz = target.id, claim.sector, target.mx, target.mz
     elif op == "css.combine_distance":
         require_fields(params, ())
         exclusion, witness = args[1], args[2]

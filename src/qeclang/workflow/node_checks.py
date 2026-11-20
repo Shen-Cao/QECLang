@@ -47,10 +47,10 @@ def _witness(value, code, report):
 def inspect_node(node, args, refs, value, key, reader, claims, relations, reported):
     """Accumulate fresh findings after the caller checks the graph edge bindings."""
     limits = reader.limits
-    if node.op in BASED_RELATIONS or node.op in ('css.transport', 'lift.css', 'css.rebase_witness'):
+    if node.op in BASED_RELATIONS or node.op in ('css.transport', 'lift.css', 'css.rebase_witness', 'css.transport_distance'):
         reader.charge('relation_checks')
     is_witness = node.result_type == 'witness'
-    if (is_witness or node.op == 'css.exclude' or
+    if (is_witness or node.op in ('css.exclude', 'css.import_exclusion') or
             (node.op == 'lift.parameters' and node.params['record_operations'] and value['status'] == 'exact')):
         reader.charge('certificates')
     if node.op == 'css.literal':
@@ -69,7 +69,7 @@ def inspect_node(node, args, refs, value, key, reader, claims, relations, report
     elif node.op == 'css.distance':
         _distance_binding(value, args[0], node)
         reported.append(node.id)
-    elif node.op == 'css.exclude':
+    elif node.op in ('css.exclude', 'css.import_exclusion'):
         fact = inspect_exclusion(node, args[0], value, key, reader)
         if fact is not None:
             claims.append(fact)
@@ -80,6 +80,23 @@ def inspect_node(node, args, refs, value, key, reader, claims, relations, report
         reader.checked_intervals.add(key)
     elif node.op == 'css.full_distance':
         claims.append(inspect_full(node, args, value, key, reader.checked_intervals, refs))
+        reader.checked_intervals.add(key)
+    elif node.op == 'css.transport_distance':
+        from .distance_transport import check_transported_interval, transport_interval_work
+        _require(refs[2] in reader.checked_intervals, 'transport requires an independently established interval')
+        params = node.params
+        work = transport_interval_work(args[0], args[1], params, max_axis=reader.limits.artifacts.max_axis)
+        reader.charge('interval_transport_work', work)
+        check_transported_interval(args[0], args[1], args[2], value, params,
+                                   max_axis=reader.limits.artifacts.max_axis, max_work=work)
+        relations.append({'node': node.id, 'operation': node.op, 'relation': params['relation'],
+                          'source': refs[0], 'target': refs[1], 'source_interval': refs[2], 'target_interval': key})
+        claims.append({**{k: v for k, v in value.items() if k != 'schema'},
+                       'node': node.id, 'scope': 'instance', 'evidence': key,
+                       'predicate': 'logical_distance' if node.sector == 'pauli' else 'sector_distance',
+                       'value': value['upper_bound'] if value['status'] == 'exact' else None,
+                       'premises': refs})
+        reader.checked_intervals.add(key)
     elif node.op == 'css.witness':
         _witness(value, args[0], args[1])
     elif node.op == 'css.import_witness':

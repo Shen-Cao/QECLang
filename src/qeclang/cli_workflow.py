@@ -46,6 +46,7 @@ def run(args: argparse.Namespace):
                 max_polynomial_operations=limits.max_polynomial_operations,
                 max_lift_comparison_units=limits.max_lift_comparison_units,
                 max_row_map_work=limits.max_row_map_work,
+                max_interval_transport_work=limits.max_interval_transport_work,
                 max_exclusion_verify_steps=limits.max_exclusion_verify_steps,
                 max_exclusion_indices=limits.max_exclusion_indices,
                 record=JSONLimits(max_bytes=args.max_record_bytes, max_integer_bits=4096,
