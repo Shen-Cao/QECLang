@@ -29,7 +29,7 @@ def _evidence(op, args, params, value, ledger, verify):
                       else check_relation(op, args[0], value, params))
         return {"assurance": "relation_checked", "verifier": op + ".relation.v1",
                 "guarantees": list(guarantees)}
-    if op in ("css.witness", "css.transport"):
+    if op in ("css.witness", "css.transport", "css.import_witness", "css.rebase_witness"):
         return {"assurance": "independently_checked", "scope": "instance",
                 "predicate": "distance_upper_bound", "source": value["source"],
                 "sector": value["claim"]["sector"], "bound": value["claim"]["distance_upper_bound"],

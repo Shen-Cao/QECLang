@@ -28,8 +28,12 @@ _SIGNATURES = MappingProxyType({
     "css.distance": (("css",), "distance"),
     "css.witness": (("css", "distance"), "witness"),
     "css.transport": (("css", "css", "witness"), "witness"),
+    "css.import_witness": (("css",), "witness"),
+    "css.rebase_witness": (("css", "css", "witness"), "witness"),
 })
 _ID = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\Z")
+_DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+_WORD = re.compile(r"0x(?:0|[1-9a-f][0-9a-f]*)\Z")
 
 
 def _integer(value, name, *, maximum=None):
@@ -49,6 +53,8 @@ class ProgramLimits:
     Seed entry/term bounds are shared by both seeds within each lifted literal.
     max_symbolic_sites bounds its computed expanded axes without allocating them;
     it is separate from CSS-literal max_qubits and executor packed-axis limits.
+    max_map_entries bounds the sum of coefficient indices in four rebase maps;
+    empty map rows remain subject to the shared JSON payload-item budget.
     """
     max_bytes: int = 10_000_000
     max_nodes: int = 1_000
@@ -71,6 +77,7 @@ class ProgramLimits:
     max_cyclic_order: int = 1_000_000
     max_group_size: int = 1_000_000
     max_symbolic_sites: int = 1_000_000_000
+    max_map_entries: int = 1_000_000
 
     def __post_init__(self):
         for item in fields(self):
@@ -139,6 +146,39 @@ def _permutation(value, n):
         seen.add(site)
 
 
+def _imported_witness(params, n, limits):
+    """Check certificate/origin syntax without source hashing or Pauli parity."""
+    _keys(params, ("certificate",), ("origin",))
+    record = params["certificate"]
+    _keys(record, ("schema", "source", "kind", "claim", "certificate"))
+    if record["schema"] != "qeclang.certificate.v1" or record["kind"] != "css_logical":
+        raise ValueError("imported witness must be a qeclang.certificate.v1 CSS logical record")
+    if type(record["source"]) is not str or _DIGEST.fullmatch(record["source"]) is None:
+        raise ValueError("certificate source must be a lowercase SHA-256 digest")
+    certificate, claim = record["certificate"], record["claim"]
+    _keys(certificate, ("sector", "operator", "dual", "weight"))
+    _keys(claim, ("distance_upper_bound", "sector"))
+    sector = certificate["sector"]
+    if sector not in ("x", "z") or claim["sector"] != sector:
+        raise ValueError("certificate and claim must have the same CSS sector")
+    weight = _integer(certificate["weight"], "certificate weight", maximum=n)
+    upper = _integer(claim["distance_upper_bound"], "distance_upper_bound", maximum=n)
+    if weight == 0 or upper != weight:
+        raise ValueError("certificate and claim must have the same positive weight")
+    for key in ("operator", "dual"):
+        value = certificate[key]
+        if (type(value) is not str or len(value) > max(1, (n+3)//4) + 2
+                or _WORD.fullmatch(value) is None or int(value, 16).bit_length() > n):
+            raise ValueError("certificate words must be canonical hexadecimal within physical width")
+    if "origin" in params:
+        origin = params["origin"]
+        _keys(origin, ("bundle_id", "node"))
+        if type(origin["bundle_id"]) is not str or _DIGEST.fullmatch(origin["bundle_id"]) is None:
+            raise ValueError("origin bundle_id must be a lowercase SHA-256 digest")
+        _identifier(origin["node"], limits)
+    return sector
+
+
 @dataclass(frozen=True, init=False)
 class ProgramNode:
     id: str
@@ -146,6 +186,8 @@ class ProgramNode:
     inputs: tuple[str, ...]
     result_type: str
     n: int
+    mx: int
+    mz: int
     depth: int
     code_id: str | None
     sector: str | None
@@ -183,15 +225,19 @@ def _node(data, prior, limits):
         raise ValueError("program dependency depth exceeds max_depth")
     code_id = sector = None
     n = prior[inputs[0]].n if inputs else 0
+    mx = prior[inputs[0]].mx if inputs else 0
+    mz = prior[inputs[0]].mz if inputs else 0
     if op == "lift.literal":
         _keys(params, ("construction",))
-        n = validate_lift_literal(params["construction"], limits=construction_limits(limits)).n
+        shape = validate_lift_literal(params["construction"], limits=construction_limits(limits))
+        n, mx, mz = shape.n, shape.x_checks, shape.z_checks
     elif op == "lift.parameters":
         validate_parameter_request(params)
         code_id = inputs[0]
     elif op == "css.literal":
         _keys(params, ("code",))
         n = _literal(params["code"], limits)
+        mx, mz = len(params["code"]["hx"]), len(params["code"]["hz"])
     elif op in ("css.permute", "css.transport"):
         _keys(params, ("permutation",))
         _permutation(params["permutation"], n)
@@ -199,6 +245,18 @@ def _node(data, prior, limits):
             if prior[inputs[1]].n != n or prior[inputs[2]].code_id != inputs[0]:
                 raise ValueError("transport requires equal dimensions and a witness bound to its source CSS node")
             code_id, sector = inputs[1], prior[inputs[2]].sector
+            mx, mz = prior[inputs[1]].mx, prior[inputs[1]].mz
+    elif op == "css.import_witness":
+        sector = _imported_witness(params, n, limits)
+        code_id = inputs[0]
+    elif op == "css.rebase_witness":
+        from .row_equivalence import validate_map_supports
+        target, witness = prior[inputs[1]], prior[inputs[2]]
+        if target.n != n or witness.code_id != inputs[0]:
+            raise ValueError("rebasing requires equal physical widths and a source-bound witness")
+        validate_map_supports(params, (mx, mz), (target.mx, target.mz),
+                              max_rows=limits.max_payload_items, max_indices=limits.max_map_entries)
+        code_id, sector, mx, mz = inputs[1], witness.sector, target.mx, target.mz
     elif op == "css.distance":
         _keys(params, ("sector", "max_weight", "max_candidates"))
         if params["sector"] not in ("x", "z"):
@@ -215,7 +273,7 @@ def _node(data, prior, limits):
         _keys(params, ())
     node = object.__new__(ProgramNode)
     values = {"id": name, "op": op, "inputs": inputs, "result_type": result_type,
-              "n": n, "depth": depth, "code_id": code_id, "sector": sector,
+              "n": n, "mx": mx, "mz": mz, "depth": depth, "code_id": code_id, "sector": sector,
               "_params_json": _canonical(params)}
     for key, value in values.items():
         object.__setattr__(node, key, value)
@@ -229,7 +287,9 @@ class Program:
     Parameter results bind to their originating lift node ID through code_id.
     Distance/witness values bind to their originating CSS node ID. Even an
     identity conversion creates a different nominal CSS value; reuse requires
-    explicit witness transport. Parsing does not prove literal commutation or
+    explicit witness transport or rebasing. Check counts mx/mz are static metadata
+    for source/target row-map dimensions. Imported certificate source/parity and
+    origin claims are not authenticated by parsing. Parsing does not prove literal commutation or
     the source/target permutation relation; the executor must check those.
     """
     nodes: tuple[ProgramNode, ...]

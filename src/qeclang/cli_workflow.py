@@ -45,6 +45,7 @@ def run(args: argparse.Namespace):
                 max_polynomial_degree=limits.max_polynomial_degree,
                 max_polynomial_operations=limits.max_polynomial_operations,
                 max_lift_comparison_units=limits.max_lift_comparison_units,
+                max_row_map_work=limits.max_row_map_work,
                 record=JSONLimits(max_bytes=args.max_record_bytes, max_integer_bits=4096,
                                   max_payload_items=8_000_000),
                 artifacts=ImportLimits(max_bytes=limits.max_artifact_bytes, max_axis=limits.max_axis,

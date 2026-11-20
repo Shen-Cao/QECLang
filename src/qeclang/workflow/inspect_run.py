@@ -9,6 +9,7 @@ from .json_input import JSONLimitExceeded, JSONLimits, validate_json_data
 from .program import Program
 from .relations import BASED_RELATIONS, check_relation, check_witness_transport
 from .lift_inspection import InspectionQuota, LiftInspection
+from .reuse_ops import admit_witness
 from qeclang.constructions.records import to_dict as construction_record
 
 
@@ -18,6 +19,7 @@ class InspectionLimits:
     max_certificates: int = 256
     max_rank_steps: int = 1_000_000
     max_lift_comparison_units: int = 1_000_000
+    max_row_map_work: int = 1_000_000
     max_blocks: int = 100_000
     max_symbolic_terms: int = 100_000
     max_lift_degree: int = 512
@@ -29,7 +31,7 @@ class InspectionLimits:
 
     def __post_init__(self):
         for value in (self.max_relation_checks, self.max_certificates, self.max_rank_steps,
-                      self.max_lift_comparison_units, self.max_blocks, self.max_symbolic_terms, self.max_lift_degree,
+                      self.max_lift_comparison_units, self.max_row_map_work, self.max_blocks, self.max_symbolic_terms, self.max_lift_degree,
                       self.max_polynomial_degree, self.max_polynomial_operations):
             if type(value) is not int or value < 0:
                 raise ValueError("inspection counters must be nonnegative integers")
@@ -114,14 +116,14 @@ class _Reader:
         self.imports = ImportBudget(max_artifact_bytes=limits.artifacts.max_bytes,
                                     max_validation_work=limits.artifacts.max_validation_work)
         self.lifts = LiftInspection(limits.max_rank_steps, limits.max_lift_comparison_units)
-        self.counts = {'relation_checks': 0, 'certificates': 0}
+        self.counts = {'relation_checks': 0, 'certificates': 0, 'row_map_work': 0}
         self.prefix_nodes = ()
         self.stop = None
 
-    def charge(self, key):
-        if self.counts[key] >= getattr(self.limits, 'max_' + key):
+    def charge(self, key, amount=1):
+        if self.counts[key] + amount > getattr(self.limits, 'max_' + key):
             raise InspectionQuota(f'inspection exceeds max_{key}')
-        self.counts[key] += 1
+        self.counts[key] += amount
 
     def summary(self):
         return {**self.imports.used, **self.counts,
@@ -167,9 +169,10 @@ def _inspect(program, record, reader, allow_prefix):
             values[key] = import_artifact(artifact, node.result_type, limits=limits.artifacts, budget=reader.imports)
         value = values[key]
         args = [values[d] for d in refs]
-        if node.op in BASED_RELATIONS or node.op in ('css.transport', 'lift.css'):
+        if node.op in BASED_RELATIONS or node.op in ('css.transport', 'lift.css', 'css.rebase_witness'):
             reader.charge('relation_checks')
-        if (node.op in ('css.transport', 'css.witness') or
+        is_witness = node.result_type == 'witness'
+        if (is_witness or
                 (node.op == 'lift.parameters' and node.params['record_operations'] and value['status'] == 'exact')):
             reader.charge('certificates')
         if node.op == 'css.literal':
@@ -190,13 +193,24 @@ def _inspect(program, record, reader, allow_prefix):
             reported.append(node.id)
         elif node.op == 'css.witness':
             _witness(value, args[0], args[1])
+        elif node.op == 'css.import_witness':
+            _require(value == node.params['certificate'], 'stored witness differs from program input')
+            admit_witness(args[0], value)
+        elif node.op == 'css.rebase_witness':
+            from .row_equivalence import check_rebound, row_equivalence_work
+            maps = node.params
+            reader.charge('row_map_work', row_equivalence_work(args[0], args[1], maps))
+            check_rebound(args[0], args[1], maps, args[2], value)
+            relations.append({'node': node.id, 'operation': node.op, 'source': refs[0], 'target': refs[1],
+                              'source_witness': refs[2], 'target_witness': key,
+                              'relation': 'equal_positive_css_row_spaces_in_fixed_physical_basis'})
         elif node.op == 'css.transport':
             check_witness_transport(args[0], args[1], node.params['permutation'], args[2], value)
             relations.append({'node': node.id, 'operation': node.op, 'source': refs[0],
                               'target': refs[1], 'source_witness': refs[2], 'target_witness': key})
         else:
             raise ValueError('inspection has no checker for this instruction')
-        if node.op in ('css.transport', 'css.witness'):
+        if is_witness:
             claims.append({'node': node.id, 'scope': 'instance', 'source': value['source'],
                            'predicate': 'distance_upper_bound', 'sector': node.sector,
                            'bound': value['claim']['distance_upper_bound'], 'evidence': key})
@@ -257,4 +271,7 @@ def inspect_run(program: Program, record, *, limits=InspectionLimits(), allow_pr
     if status == 'checked_prefix':
         result.update(checked_prefix_nodes=list(reader.prefix_nodes), unverified_stop=reader.stop.copy())
         result['unverified'].extend(('stop_cause', 'stop_spend'))
+    if any(n.id in inspected_nodes and n.op == 'css.import_witness' and 'origin' in n.params
+           for n in program.nodes):
+        result['unverified'].append('witness_origin_metadata')
     return result

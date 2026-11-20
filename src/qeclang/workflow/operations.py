@@ -9,6 +9,7 @@ from qeclang.codes import SparseCSSCode
 from qeclang.io import from_dict
 from qeclang.transforms import permute_qubits
 from .relations import transport_witness
+from .reuse_ops import apply_reuse
 
 
 class UnavailableEvidence(Exception):
@@ -37,6 +38,8 @@ def _sparse(source, ledger):
 def evaluate(op, args, params, ledger):
     if op == "css.literal":
         return _literal(params, ledger)
+    if op in ('css.import_witness', 'css.rebase_witness'):
+        return apply_reuse(op, args, params, ledger)
     source = args[0]
     if op == "css.chain":
         return source.to_chain_complex()
