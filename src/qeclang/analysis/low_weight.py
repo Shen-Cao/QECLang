@@ -43,14 +43,15 @@ def _reduce(word, basis, meter):
 
 
 def _counterexample(code, sector, word, free, basis, subject, meter):
+    meter.charge()
     dual = 1 << free
     meter.charge(len(basis) * max(1, len(basis).bit_length()))
     for pivot in sorted(basis, reverse=True):
         meter.charge()
         if (basis[pivot][0] & dual).bit_count() % 2:
             dual ^= 1 << pivot
-    certificate = LogicalWitness(sector, word, dual, word.bit_count())
     meter.charge(code.hx.nrows + code.hz.nrows + 2)
+    certificate = LogicalWitness(sector, word, dual, word.bit_count())
     if not verify_css_logical(code, certificate):
         raise ArithmeticError("constructed low-weight counterexample failed independent parity checks")
     return {"schema": "qeclang.certificate.v1", "source": subject, "kind": "css_logical",
