@@ -28,6 +28,8 @@ A program has exactly `schema`, `nodes`, and `outputs`. Each node has `id`, `op`
 | `css.distance` | `css` → `distance` | `sector`, `max_weight`, `max_candidates` |
 | `css.witness` | `css`, `distance` → `witness` | Empty parameters; verify the supplied upper witness |
 | `css.transport` | source `css`, target `css`, `witness` → `witness` | `permutation`: verify the relationship and relabel both operator and dual |
+| `css.import_witness` | `css` → `witness` | `certificate` and optional `origin`: verify a supplied certificate on this presentation |
+| `css.rebase_witness` | source `css`, target `css`, `witness` → `witness` | `x_forward`, `x_reverse`, `z_forward`, `z_reverse`: check two-way generator inclusions and rebind the unchanged words |
 
 Distance and witness nodes have nominal source bindings. Even identical CSS data reached through a different node is a different nominal source; reuse across nodes needs explicit transport, including an identity permutation when appropriate. Runtime checks also bind evidence to the exact mathematical presentation. Thus deduplicating equal artifacts does not erase the program's source bindings.
 
@@ -200,3 +202,23 @@ It cannot establish why the producer stopped or how much work the producer spent
 The rank-evidence claim describes the finite lift even though the packed output
 was never published. Without `--allow-prefix`, an incomplete run is unsupported
 for scientific inspection.
+
+## Reusing evidence after changing check generators
+
+For each CSS sector, write S and T for the source and target check matrices.
+The forward and reverse maps must satisfy `T = A S` and `S = B T` over GF(2).
+Together these identities prove equality of the positive stabilizer groups on
+the same physical coordinates. Physical syndromes satisfy `s_target = A s_source`
+and `s_source = B s_target`. Redundant checks restrict possible syndromes, so
+A and B need not be inverse on arbitrary bit strings. The checker requires the
+original and rebound logical operator **and dual** to be identical physical
+words, and validates both certificates against their own presentations.
+
+Adding a redundant check can change the Tanner graph, decoder messages,
+syndrome width, measurement schedule, and circuit fault propagation. The
+workflow reuses the logical upper bound. Its verification does not transfer a
+logical-error-rate measurement, a scheduling claim or an exact-distance label.
+Import, row-map verification, and rebinding are mandatory under either optional
+relation-check policy. The checker accounts for supplied map incidences under
+`max_row_map_work`. Deriving coefficient maps with a linear solve is an explicit
+host operation and lies outside the interpreter. See [archive reuse](reuse.md).

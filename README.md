@@ -83,6 +83,12 @@ digest and independently inspect its claims under their own limits. A checked
 prefix can retain a parameter proof when a subsequent binary expansion was
 refused.
 
+The [cross-run reuse example](examples/reuse_upper.py) imports a checked witness
+from storage, proves equality of the old and new CSS generator spaces, and
+emits a certificate on the new presentation with zero new search candidates.
+The [comparison with fresh target analysis](docs/witness_reuse_evaluation.md)
+reports both the resulting bounds and the costs of deriving and checking maps.
+
 | Layer | Available functionality |
 |---|---|
 | Exact algebra | Immutable packed and sparse GF(2) matrices; exact packed rank, kernel, solve, products; guarded conversions and optional SciPy interchange |
