@@ -27,7 +27,8 @@ def _json(value):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    from qeclang import cli_circuits, cli_structured, cli_study, cli_workflow
+    from qeclang import cli_archive, cli_circuits, cli_structured, cli_study, cli_workflow
+    cli_archive.register(commands)
     cli_workflow.register(commands)
     cli_circuits.register(commands)
     cli_structured.register(commands)
@@ -65,6 +66,8 @@ def main(argv=None):
     search.add_argument("--max-weight", type=int, default=2)
     search.add_argument("--max-candidates", type=int, default=10_000)
     args = parser.parse_args(argv)
+    if args.command == 'archive':
+        return cli_archive.run(args)
     if args.command == "run":
         return cli_workflow.run(args)
     try:
