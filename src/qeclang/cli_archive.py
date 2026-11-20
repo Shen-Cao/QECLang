@@ -9,7 +9,8 @@ def register(commands):
     verbs = archive.add_subparsers(dest='archive_command', required=True)
     put = verbs.add_parser('put', help='inspect and atomically publish one program/run pair')
     get = verbs.add_parser('get', help='fetch a bundle by digest and check it independently')
-    for parser in (put, get):
+    reuse = verbs.add_parser('reuse', help='create a program that rebinds a saved CSS upper witness')
+    for parser in (put, get, reuse):
         parser.add_argument('database', type=Path)
         parser.add_argument('--allow-prefix', action='store_true')
         parser.add_argument('--max-bundle-bytes', type=int, default=32_000_000)
@@ -20,6 +21,10 @@ def register(commands):
     get.add_argument('key')
     get.add_argument('--expected-program', metavar='SHA256')
     get.add_argument('--include-record', action='store_true', help='include the program and run in the response')
+    reuse.add_argument('key')
+    reuse.add_argument('witness_node')
+    reuse.add_argument('target', type=Path, help='target positive CSS code record')
+    reuse.add_argument('maps', type=Path, help='explicit forward and reverse generator maps')
 
 
 def run(args):
@@ -33,12 +38,24 @@ def run(args):
         defaults = ArchiveLimits()
         limits = replace(defaults, json=replace(defaults.json, max_bytes=args.max_bundle_bytes),
                          inspection=replace(defaults.inspection, max_rank_steps=args.max_reader_steps))
-        store = SQLiteEvidenceStore(args.database, readonly=args.archive_command == 'get',
+        store = SQLiteEvidenceStore(args.database, readonly=args.archive_command != 'put',
                                     max_bundle_bytes=limits.json.max_bytes)
         if args.archive_command == 'put':
             result = publish(Program.load(args.program, limits=limits.program),
                              load_json(args.record, limits=limits.json), store,
                              limits=limits, allow_prefix=args.allow_prefix)
+        elif args.archive_command == 'reuse':
+            from .archive.reuse import make_reuse_program
+            from .io import from_dict
+            raw = load_json(args.target, limits=limits.json)
+            if not isinstance(raw, dict) or raw.get('kind') != 'css':
+                raise ValueError('archive reuse requires a positive CSS target')
+            target = from_dict(raw, max_qubits=limits.inspection.artifacts.max_axis,
+                               max_checks=limits.inspection.artifacts.max_axis,
+                               max_bits=limits.inspection.artifacts.max_matrix_bits)
+            maps = load_json(args.maps, limits=limits.json)
+            result = make_reuse_program(store, args.key, args.witness_node, target, maps,
+                                        allow_prefix=args.allow_prefix, limits=limits).to_dict()
         else:
             result = retrieve(store, args.key, expected_program=args.expected_program,
                               limits=limits, allow_prefix=args.allow_prefix)
