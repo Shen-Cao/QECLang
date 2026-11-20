@@ -9,7 +9,7 @@ import json
 import re
 
 from qeclang.algebra import BinaryMatrix
-from qeclang.algebra.binary import nonnegative_integer
+from qeclang.algebra.binary import nonnegative_integer, set_bits
 from qeclang.codes import CSSCode, StabilizerCode
 from qeclang.io import to_dict
 from .certificates import (
@@ -29,12 +29,33 @@ def presentation_fingerprint(source):
 
     This is neither a code-equivalence classifier nor an authenticity signature.
     """
+    if isinstance(source, CSSCode):
+        return _css_fingerprint(source)
     if isinstance(source, BinaryMatrix):
         data = {"kind": "binary_matrix", **_matrix_record(source)}
     else:
         data = to_dict(source)
         data.pop("name", None)
     return sha256(json.dumps(data, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _css_fingerprint(code):
+    """Stream the established canonical CSS JSON identity using set-bit visits."""
+    digest = sha256()
+    for number, (key, matrix) in enumerate((("hx", code.hx), ("hz", code.hz))):
+        digest.update(("{" if number == 0 else ",").encode() + ('"' + key + '":[').encode())
+        for i, row in enumerate(matrix.rows):
+            if i:
+                digest.update(b",")
+            digest.update(b"[")
+            for j, site in enumerate(set_bits(row)):
+                if j:
+                    digest.update(b",")
+                digest.update(str(site).encode())
+            digest.update(b"]")
+        digest.update(b"]")
+    digest.update((',"kind":"css","n":' + str(code.n) + ',"schema":"qeclang.code.v1"}').encode())
+    return digest.hexdigest()
 
 
 def certificate_record(source, certificate):

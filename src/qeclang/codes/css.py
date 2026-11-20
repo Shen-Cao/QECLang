@@ -26,7 +26,16 @@ class CSSCode:
             raise TypeError("CSS checks must be BinaryMatrix objects")
         if self.hx.ncols != self.hz.ncols:
             raise ValueError("X and Z checks must have the same number of qubits")
-        if not (self.hx @ self.hz.T).is_zero:
+        # Transposing a presentation with a large declared width can allocate
+        # far more columns than there are stored rows or support bits.
+        pairs = self.hx.nrows * self.hz.nrows
+        if not pairs:
+            return
+        if pairs <= self.n:
+            noncommuting = any((x & z).bit_count() % 2 for x in self.hx.rows for z in self.hz.rows)
+        else:
+            noncommuting = not (self.hx @ self.hz.T).is_zero
+        if noncommuting:
             raise ValueError("CSS checks do not commute: hx @ hz.T is nonzero")
 
     @property

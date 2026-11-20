@@ -129,3 +129,14 @@ def test_all_two_qubit_gauge_modules_have_valid_center():
                 assert code.checks.contains(center)
                 assert code.centralizer().contains(center)
             assert code.stabilizer.k == code.k + code.r
+
+
+def test_wide_few_check_presentation_does_not_materialize_transpose(monkeypatch):
+    from qeclang.algebra import BinaryMatrix
+    def forbidden(*args):
+        raise AssertionError('wide admission must avoid width-sized transpose')
+    monkeypatch.setattr(BinaryMatrix, 'transpose', forbidden)
+    n = 10**12
+    assert CSSCode(BinaryMatrix((3,), n), BinaryMatrix((3,), n)).n == n
+    with pytest.raises(ValueError, match='commute'):
+        CSSCode(BinaryMatrix((1,), n), BinaryMatrix((1,), n))
