@@ -50,6 +50,7 @@ def test_shape_and_exponential_preflight_precede_foreign_calls(monkeypatch):
     assert comparison.preflight(free, comparison.ComparisonLimits())['foreign_candidate_bounds'] == {'x': 15, 'z': 15}
     monkeypatch.setattr(comparison, 'foreign_call', forbidden)
     assert comparison.compare_case('toric_3')['status'] == 'skipped_budget'
+    assert comparison.compare_family('steane', limits=comparison.ComparisonLimits(max_n=1))['status'] == 'skipped_budget'
     assert comparison.compare_case('steane', limits=comparison.ComparisonLimits(max_native_candidates=0))['status'] == 'native_incomplete'
 
 
@@ -131,3 +132,14 @@ def test_real_family_constructors_use_raw_matrices_not_cached_distances(monkeypa
                     'limits': comparison.asdict(comparison.ComparisonLimits())})
         assert result['status'] == 'observed' and result['family_distance_metadata_used'] is False
         assert result['code']['kind'] == 'css'
+
+
+def test_cli_small_axis_cap_emits_both_refusals_without_foreign_work(monkeypatch, capsys):
+    def forbidden(*args, **kwargs):
+        raise AssertionError('small-cap CLI refusal must precede foreign work')
+    monkeypatch.setattr(comparison, 'foreign_call', forbidden)
+    monkeypatch.setattr(sys, 'argv', ['compare_qldpc.py', '--cases', 'steane', '--max-n', '1'])
+    assert comparison.main() == 2
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert {row['kind'] for row in rows} == {'matched_presentation', 'independent_family'}
+    assert all(row['status'] == 'skipped_budget' for row in rows)

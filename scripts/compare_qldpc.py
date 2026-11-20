@@ -195,11 +195,15 @@ def compare_case(identifier, *, limits=ComparisonLimits()):
 
 
 def compare_family(identifier, *, limits=ComparisonLimits()):
-    native = build_reference(identifier, max_qubits=limits.max_n, max_checks=limits.max_checks,
-                              max_bits=limits.max_elements)
-    preflight(native, limits)
+    row = {'kind': 'independent_family', 'case': identifier}
+    try:
+        native = build_reference(identifier, max_qubits=limits.max_n, max_checks=limits.max_checks,
+                                  max_bits=limits.max_elements)
+        preflight(native, limits)
+    except ValueError as error:
+        return {**row, 'status': 'skipped_budget', 'reason': str(error)}
     result = foreign_call('family', identifier, limits)
-    row = {'kind': 'independent_family', 'case': identifier, 'foreign': result}
+    row['foreign'] = result
     if result['status'] != 'observed':
         return {**row, 'status': 'external_'+result['status']}
     other = from_dict(result['code'], max_qubits=limits.max_n,
