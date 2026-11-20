@@ -37,6 +37,11 @@ def run(args: argparse.Namespace):
             from qeclang.workflow.import_artifact import ImportLimits
             inspection = InspectionLimits(max_relation_checks=args.max_inspection_relations,
                 max_certificates=args.max_inspection_certificates,
+                max_rank_steps=limits.max_rank_steps, max_blocks=limits.max_blocks,
+                max_symbolic_terms=limits.max_symbolic_terms, max_lift_degree=limits.max_lift_degree,
+                max_polynomial_degree=limits.max_polynomial_degree,
+                max_polynomial_operations=limits.max_polynomial_operations,
+                max_lift_comparison_units=limits.max_lift_comparison_units,
                 record=JSONLimits(max_bytes=args.max_record_bytes, max_integer_bits=4096,
                                   max_payload_items=8_000_000),
                 artifacts=ImportLimits(max_bytes=limits.max_artifact_bytes, max_axis=limits.max_axis,

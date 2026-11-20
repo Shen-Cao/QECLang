@@ -12,12 +12,24 @@ class ExecutionLimits:
     max_axis: int = 1024
     max_matrix_bits: int = 8_000_000
     max_basis_bits: int = 8_000_000
+    max_rank_steps: int = 1_000_000
+    max_blocks: int = 100_000
+    max_symbolic_terms: int = 100_000
+    max_lift_comparison_units: int = 1_000_000
+    max_lift_degree: int = 512
+    max_polynomial_degree: int = 2048
+    max_polynomial_operations: int = 10_000
+    max_component_axis: int = 1024
+    max_field_degree: int = 64
+    max_characters: int = 10_000
 
     def __post_init__(self):
         for field in fields(self):
             value = getattr(self, field.name)
             if type(value) is not int or value < 0:
                 raise ValueError(f"{field.name} must be a nonnegative integer")
+        if max(self.max_lift_degree, self.max_polynomial_degree, self.max_field_degree) > 4095:
+            raise ValueError("polynomial degrees exceed the workflow record word limit")
 
 
 class BudgetExceeded(Exception):
@@ -35,8 +47,8 @@ class Ledger:
     def __init__(self, limits):
         self.limits = limits
         self.used = {k: 0 for k in ("candidates", "optional_checks", "transports",
-                                    "artifact_bytes", "validation_work")}
-        self.peak_requested = {k: 0 for k in ("axis", "matrix_bits", "basis_bits")}
+                                    "artifact_bytes", "validation_work", "rank_steps", "lift_comparison_units")}
+        self.peak_requested = {k: 0 for k in ("axis", "matrix_bits", "basis_bits", "blocks", "symbolic_terms")}
 
     def remaining(self, resource):
         return getattr(self.limits, "max_" + resource) - self.used[resource]

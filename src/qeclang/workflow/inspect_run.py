@@ -8,18 +8,29 @@ from .import_artifact import ImportBudget, ImportLimitExceeded, ImportLimits, im
 from .json_input import JSONLimitExceeded, JSONLimits, validate_json_data
 from .program import Program
 from .relations import BASED_RELATIONS, check_relation, check_witness_transport
+from .lift_inspection import InspectionQuota, LiftInspection
+from qeclang.constructions.records import to_dict as construction_record
 
 
 @dataclass(frozen=True)
 class InspectionLimits:
     max_relation_checks: int = 512
     max_certificates: int = 256
+    max_rank_steps: int = 1_000_000
+    max_lift_comparison_units: int = 1_000_000
+    max_blocks: int = 100_000
+    max_symbolic_terms: int = 100_000
+    max_lift_degree: int = 512
+    max_polynomial_degree: int = 2048
+    max_polynomial_operations: int = 10_000
     record: JSONLimits = field(default_factory=lambda: JSONLimits(max_bytes=32_000_000,
                                 max_integer_bits=4096, max_payload_items=8_000_000))
     artifacts: ImportLimits = field(default_factory=ImportLimits)
 
     def __post_init__(self):
-        for value in (self.max_relation_checks, self.max_certificates):
+        for value in (self.max_relation_checks, self.max_certificates, self.max_rank_steps,
+                      self.max_lift_comparison_units, self.max_blocks, self.max_symbolic_terms, self.max_lift_degree,
+                      self.max_polynomial_degree, self.max_polynomial_operations):
             if type(value) is not int or value < 0:
                 raise ValueError("inspection counters must be nonnegative integers")
         if not isinstance(self.record, JSONLimits) or not isinstance(self.artifacts, ImportLimits):
@@ -68,7 +79,28 @@ def _witness(value, code, report):
              "witness does not certify the reported operator/upper bound")
 
 
-def _inspect(program, record, limits):
+class _Reader:
+    """Keep the reader's charged units even when the scientific check refuses."""
+    def __init__(self, limits):
+        self.limits = limits
+        self.imports = ImportBudget(max_artifact_bytes=limits.artifacts.max_bytes,
+                                    max_validation_work=limits.artifacts.max_validation_work)
+        self.lifts = LiftInspection(limits.max_rank_steps, limits.max_lift_comparison_units)
+        self.counts = {'relation_checks': 0, 'certificates': 0}
+
+    def charge(self, key):
+        if self.counts[key] >= getattr(self.limits, 'max_' + key):
+            raise InspectionQuota(f'inspection exceeds max_{key}')
+        self.counts[key] += 1
+
+    def summary(self):
+        return {**self.imports.used, **self.counts,
+                'rank_steps': self.limits.max_rank_steps - self.lifts.remaining_steps,
+                'lift_comparison_units': self.limits.max_lift_comparison_units - self.lifts.remaining_comparison_units}
+
+
+def _inspect(program, record, reader):
+    limits = reader.limits
     validate_json_data(record, limits=limits.record)
     _require(type(record) is dict and set(record) == _RUN_FIELDS and
              record['schema'] == 'qeclang.run.v1', "invalid run schema/fields")
@@ -79,10 +111,7 @@ def _inspect(program, record, limits):
     trace, records = record['trace'], record['artifacts']
     _require(type(trace) is list and len(trace) == len(program.nodes), "incomplete or extra trace nodes")
     _require(type(records) is dict and len(records) <= len(trace), "invalid retained artifact map")
-    budget = ImportBudget(max_artifact_bytes=limits.artifacts.max_bytes,
-                          max_validation_work=limits.artifacts.max_validation_work)
     values, bindings, claims, relations, reported = {}, {}, [], [], []
-    relation_count = certificate_count = 0
     for node, step in zip(program.nodes, trace):
         _require(type(step) is dict and set(step) == _STEP_FIELDS and step['status'] == 'completed',
                  "invalid completed trace step")
@@ -96,21 +125,25 @@ def _inspect(program, record, limits):
         _require(type(artifact) is dict and artifact.get('digest') == key
                  and artifact.get('kind') == node.result_type, "artifact key or type mismatch")
         if key not in values:
-            values[key] = import_artifact(artifact, node.result_type, limits=limits.artifacts, budget=budget)
+            values[key] = import_artifact(artifact, node.result_type, limits=limits.artifacts, budget=reader.imports)
         value = values[key]
         args = [values[d] for d in refs]
-        if node.op in BASED_RELATIONS or node.op == 'css.transport':
-            relation_count += 1
-            if relation_count > limits.max_relation_checks:
-                raise _InspectionQuota("relation checks exceed max_relation_checks")
-        if node.op in ('css.transport', 'css.witness'):
-            certificate_count += 1
-            if certificate_count > limits.max_certificates:
-                raise _InspectionQuota("certificate nodes exceed max_certificates")
+        if node.op in BASED_RELATIONS or node.op in ('css.transport', 'lift.css'):
+            reader.charge('relation_checks')
+        if (node.op in ('css.transport', 'css.witness') or
+                (node.op == 'lift.parameters' and node.params['record_operations'] and value['status'] == 'exact')):
+            reader.charge('certificates')
         if node.op == 'css.literal':
             _literal(value, node.params['code'])
-        elif node.op in BASED_RELATIONS:
-            guarantees = check_relation(node.op, args[0], value, node.params)
+        elif node.op == 'lift.literal':
+            _require(construction_record(value) == node.params['construction'], 'lift literal differs from program')
+        elif node.op == 'lift.parameters':
+            verified = reader.lifts.parameters(node, args[0], value, key, limits)
+            if verified is not None:
+                claims.append(verified)
+        elif node.op in BASED_RELATIONS or node.op == 'lift.css':
+            guarantees = (reader.lifts.expansion(args[0], value) if node.op == 'lift.css'
+                          else check_relation(node.op, args[0], value, node.params))
             relations.append({'node': node.id, 'operation': node.op, 'source': refs[0],
                               'target': key, 'guarantees': list(guarantees)})
         elif node.op == 'css.distance':
@@ -134,10 +167,6 @@ def _inspect(program, record, limits):
     return 'checked', claims, relations, reported, None
 
 
-class _InspectionQuota(Exception):
-    pass
-
-
 def inspect_run(program: Program, record, *, limits=InspectionLimits()):
     """Check graph bindings to the caller's program and verify relational/parity predicates.
 
@@ -149,14 +178,21 @@ def inspect_run(program: Program, record, *, limits=InspectionLimits()):
     """
     if not isinstance(program, Program) or not isinstance(limits, InspectionLimits):
         raise TypeError('inspect_run requires Program and InspectionLimits')
+    reader = _Reader(limits)
     try:
-        status, claims, relations, reported, reason = _inspect(program, record, limits)
-    except (_InspectionQuota, JSONLimitExceeded, ImportLimitExceeded) as exc:
+        status, claims, relations, reported, reason = _inspect(program, record, reader)
+    except (InspectionQuota, JSONLimitExceeded, ImportLimitExceeded) as exc:
         status, claims, relations, reported, reason = 'budget_exhausted', [], [], [], str(exc)
     except (TypeError, ValueError) as exc:
         status, claims, relations, reported, reason = 'invalid_record', [], [], [], str(exc)
+    structured = any(n.op.startswith('lift.') for n in program.nodes)
+    scope = ('based_relations_css_upper_witnesses_and_traced_ranks' if structured
+             else 'based_relations_and_css_upper_witnesses')
+    checked_nodes = {c['node'] for c in claims}
     return {'schema': 'qeclang.inspection.v1', 'program': program.fingerprint(), 'status': status,
-            'scope': 'based_relations_and_css_upper_witnesses', 'claims': claims,
+            'scope': scope, 'claims': claims, 'reader_usage': reader.summary(),
             'relations': relations, 'reported_distance_nodes': reported, 'reason': reason,
+            'unverified_parameter_nodes': [n.id for n in program.nodes if n.op == 'lift.parameters'
+                                          and n.id not in checked_nodes] if status == 'checked' else [],
             'unverified': ['distance_lower_bounds', 'distance_exactness', 'no_logicals',
                            'runtime', 'ledger', 'candidate_counts', 'recorded_assurance']}

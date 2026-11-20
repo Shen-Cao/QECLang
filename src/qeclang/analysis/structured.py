@@ -33,6 +33,16 @@ class StructuredParameters:
         return self.k / self.n if self.k is not None and self.n else None
 
 
+def unsupported_reason(backend, orders):
+    if backend == "polynomial" and len(orders) != 1:
+        return "polynomial backend requires one cyclic factor"
+    if backend == "crt" and (len(orders) != 1 or orders[0] % 2 == 0):
+        return "CRT field backend requires one odd cyclic factor"
+    if backend == "abelian" and any(order % 2 == 0 for order in orders):
+        return "abelian character backend requires odd cyclic factors"
+    return None
+
+
 def analyze_lifted(construction: LiftedProduct, *, backend="crt", max_degree=512,
                    max_steps=10_000_000, max_entries=1_000_000,
                    max_blocks=1_000_000, max_bits=100_000_000,
@@ -78,15 +88,9 @@ def analyze_lifted(construction: LiftedProduct, *, backend="crt", max_degree=512
     base = {"construction_fingerprint": fingerprint(construction), "n": construction.n,
             "method": backend}
     zero_steps = None if backend == "packed" else 0
-    if backend == "polynomial" and len(construction.a.orders) != 1:
-        return StructuredParameters(**base, status="unsupported", steps=zero_steps,
-                                    reason="polynomial backend requires one cyclic factor")
-    if backend == "crt" and (len(construction.a.orders) != 1 or construction.a.orders[0] % 2 == 0):
-        return StructuredParameters(**base, status="unsupported", steps=zero_steps,
-                                    reason="CRT field backend requires one odd cyclic factor")
-    if backend == "abelian" and any(order % 2 == 0 for order in construction.a.orders):
-        return StructuredParameters(**base, status="unsupported", steps=zero_steps,
-                                    reason="abelian character backend requires odd cyclic factors")
+    reason = unsupported_reason(backend, construction.a.orders)
+    if reason:
+        return StructuredParameters(**base, status="unsupported", steps=zero_steps, reason=reason)
     a, b = construction.a, construction.b
     blocks = (a.ncols*b.ncols + a.nrows*b.nrows) * (a.nrows*b.ncols + a.ncols*b.nrows)
     if blocks > max_blocks or max(a.nrows, a.ncols, b.nrows, b.ncols)**2 > max_blocks:

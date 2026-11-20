@@ -16,6 +16,9 @@ A program has exactly `schema`, `nodes`, and `outputs`. Each node has `id`, `op`
 
 | Operation | Input → output | Parameters and meaning |
 |---|---|---|
+| `lift.literal` | none → `lift` | `construction`: canonical finite abelian lifted-product seeds |
+| `lift.parameters` | `lift` → `parameters` | `backend`, `max_steps`, `record_operations`: symbolic dimension analysis of this instance |
+| `lift.css` | `lift` → `css` | Empty parameters; explicit, guarded binary expansion |
 | `css.literal` | none → `css` | `code`: existing `qeclang.code.v1` CSS support lists |
 | `css.chain` | `css` → `chain` | Empty parameters; `d1=Hx`, `d2=Hzᵀ` |
 | `chain.css` | `chain` → `css` | Empty parameters; inverse based representation |
@@ -133,3 +136,46 @@ checker. Strict replay remains available for recorded refusals. The CLI flag
 checks the relevant relationships. A successful inspection gives no assurance
 about producer-reported budgets, historical checks, or code equivalence beyond
 the explicit relations in that program.
+
+## Lifted-product programs
+
+`lift.literal` admits a canonical `qeclang.construction.v1` seed record. Its
+static type includes the unexpanded blocklength. `lift.parameters` takes this
+value and an explicit backend, `max_steps`, and `record_operations`. The `crt`,
+`polynomial`, `abelian`, and `mixed-abelian` backends retain their respective
+coefficient-domain requirements. An unsupported or exhausted rank analysis
+returns its status with no logical count. Candidate enumeration and symbolic
+arithmetic use separate additive counters. Symbolic preflight, source hashing and
+artifact serialization fall outside the arithmetic counter. The charge on a
+refusal is the arithmetic work already accepted by the kernel's meter.
+
+Only `lift.css` requests binary expansion. It estimates shape and payload before
+allocating the packed representation. When enabled and within the reader's or
+executor's limits, its relation checker reconstructs each expected physical
+incidence directly from the two seed translations, including inverse shifts in
+the adjoint blocks. Equal rank and blocklength alone would miss a misplaced shift.
+The extra check has its own `lift_comparison_units` proxy.
+
+```sh
+mkdir -p output
+qeclang run examples/programs/cyclic_rank.json > output/cyclic-run.json
+qeclang run examples/programs/cyclic_rank.json --inspect output/cyclic-run.json
+```
+
+The example uses a shared cyclic group of order six, which has repeated roots
+over GF(2). Its twelve physical qubits have X and Z check ranks five each, hence
+two logical qubits. For `backend="polynomial"` with `record_operations=true`, the
+scientific inspector can replay the supplied elementary operations on both
+symbolic checks and verify their diagonal gcd rank contributions without binary
+lowering or rank production. The checked claim applies to this finite construction.
+An untraced rank computation can still finish exactly under the producer's
+semantics. Inspection lists that result under `unverified_parameter_nodes`.
+CRT/character component rank metadata alone is insufficient for independent
+rank certification in this dialect. No automatic backend fallback occurs.
+
+Rank replay shares the source seed interpretation, symbolic check construction
+and polynomial arithmetic with the implementation. The verifier independently
+checks the elementary operations, their resulting diagonals, and the gcd/rank
+identities. An explicit `lift.css` edge exercises a separate direct physical
+incidence check. Neither verification step establishes a distance or an
+asymptotic family claim.

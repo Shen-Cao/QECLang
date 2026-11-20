@@ -1,0 +1,18 @@
+{
+  "schema": "qeclang.program.v1",
+  "nodes": [
+    {"id": "seeds", "op": "lift.literal", "inputs": [], "params": {"construction": {
+      "schema": "qeclang.construction.v1", "kind": "abelian_lifted_product",
+      "coefficient_field": "GF(2)", "orders": [6],
+      "action": "row-site-to-column-site-plus-exponent",
+      "convention": "hx=[A*kron*I,I*kron*B.star];hz=[I*kron*B,A.star*kron*I]",
+      "physical_ordering": "VV,CC;lexicographic-base-pairs;group-site-inside-block",
+      "a": {"shape": [1,1], "entries": [[[[0],[1]]]]},
+      "b": {"shape": [1,1], "entries": [[[[0],[2]]]]}
+    }}},
+    {"id": "parameters", "op": "lift.parameters", "inputs": ["seeds"],
+     "params": {"backend": "polynomial", "max_steps": 100000, "record_operations": true}},
+    {"id": "binary", "op": "lift.css", "inputs": ["seeds"], "params": {}}
+  ],
+  "outputs": ["parameters", "binary"]
+}

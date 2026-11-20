@@ -6,18 +6,27 @@ from qeclang.provenance import runtime_provenance
 from .artifacts import describe
 from .budget import BudgetExceeded, ExecutionLimits, Ledger
 from .operations import UnavailableEvidence, evaluate
+from .lift_operations import evaluate_lift
+from .lift_relations import comparison_units, check_lift
+from .json_input import JSONLimitExceeded
 from .program import Program
 from .relations import BASED_RELATIONS, RelationError, check_relation
 
 
 def _evidence(op, args, params, value, ledger, verify):
-    if op in BASED_RELATIONS:
+    if op in BASED_RELATIONS or op == 'lift.css':
         if not verify:
             return {"assurance": "not_requested"}
         if not ledger.remaining("optional_checks"):
             return {"assurance": "budget_exhausted", "resource": "optional_checks"}
+        if op == 'lift.css':
+            work = comparison_units(args[0])
+            if work > ledger.remaining('lift_comparison_units'):
+                return {'assurance': 'budget_exhausted', 'resource': 'lift_comparison_units'}
+            ledger.charge('lift_comparison_units', work)
         ledger.charge("optional_checks", 1)
-        guarantees = check_relation(op, args[0], value, params)
+        guarantees = (check_lift(args[0], value) if op == 'lift.css'
+                      else check_relation(op, args[0], value, params))
         return {"assurance": "relation_checked", "verifier": op + ".relation.v1",
                 "guarantees": list(guarantees)}
     if op in ("css.witness", "css.transport"):
@@ -29,6 +38,10 @@ def _evidence(op, args, params, value, ledger, verify):
         return {"assurance": "producer_computed", "scope": "instance", "predicate": "sector_distance",
                 "source": value["source"], "sector": value["sector"], "search_status": value["status"],
                 "lower_bound": value["lower_bound"], "upper_bound": value["upper_bound"]}
+    if op == 'lift.parameters':
+        return {'assurance': 'producer_computed' if value['status'] == 'exact' else 'unavailable',
+                'scope': 'instance', 'predicate': 'logical_dimension', 'analysis_status': value['status'],
+                'source': value['construction_fingerprint'], 'value': value['k'], 'method': value['method']}
     return {"assurance": "core_validated"}
 
 
@@ -55,10 +68,13 @@ def execute(program: Program, *, limits=ExecutionLimits(), verify_relations=True
         try:
             params = node.params
             args = [values[i] for i in node.inputs]
-            value = evaluate(node.op, args, params, ledger)
+            value = (evaluate_lift(node.op, args, params, ledger, program.limits)
+                     if node.op.startswith('lift.') else evaluate(node.op, args, params, ledger))
             evidence = _evidence(node.op, args, params, value, ledger, verify_relations)
             try:
                 artifact = describe(node.result_type, value)
+            except JSONLimitExceeded:
+                raise
             except (ValueError, TypeError) as exc:
                 raise ArithmeticError(f"{node.op} produced an invalid artifact") from exc
             key = artifact["digest"]
@@ -76,6 +92,9 @@ def execute(program: Program, *, limits=ExecutionLimits(), verify_relations=True
         except BudgetExceeded as exc:
             status = "budget_exhausted"
             step.update(status=status, reason=str(exc), **exc.detail)
+        except JSONLimitExceeded as exc:
+            status = "budget_exhausted"
+            step.update(status=status, reason=str(exc), resource="artifact_admission")
         except RelationError as exc:
             status = "verification_failed"
             step.update(status=status, reason=str(exc))

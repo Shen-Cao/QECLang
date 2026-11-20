@@ -70,6 +70,13 @@ qeclang run examples/programs/transport.json --inspect results/transport-run.jso
 See [workflow programs](docs/workflow.md) for the supported operations, the
 meaning of partial results, and the trust boundary for replay.
 
+The [cyclic rank program](examples/programs/cyclic_rank.json) constructs a
+twelve-qubit lifted product from polynomial seeds. Its saved rank traces let
+the inspector verify the two logical qubits independently. A separate node
+compares the explicit binary presentation with the seed action on physical
+coordinates. [Evaluation on small CSS codes](docs/workflow_evaluation.md)
+compares direct execution, artifact handling, replay, and inspection.
+
 | Layer | Available functionality |
 |---|---|
 | Exact algebra | Immutable packed and sparse GF(2) matrices; exact packed rank, kernel, solve, products; guarded conversions and optional SciPy interchange |
