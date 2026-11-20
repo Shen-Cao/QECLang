@@ -77,6 +77,12 @@ compares the explicit binary presentation with the seed action on physical
 coordinates. [Evaluation on small CSS codes](docs/workflow_evaluation.md)
 compares direct execution, artifact handling, replay, and inspection.
 
+Use the [evidence archive](docs/archive.md) to retain a program and its run for a
+later session. Publication is an explicit operation. Readers fetch a bundle by
+digest and independently inspect its claims under their own limits. A checked
+prefix can retain a parameter proof when a subsequent binary expansion was
+refused.
+
 | Layer | Available functionality |
 |---|---|
 | Exact algebra | Immutable packed and sparse GF(2) matrices; exact packed rank, kernel, solve, products; guarded conversions and optional SciPy interchange |

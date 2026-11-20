@@ -1,0 +1,56 @@
+\section{Programs and independent evidence inspection}
+
+A program is a finite sequence of named, typed operations. An operation can
+refer to earlier values, so several analyses may share one construction. The
+checker validates the graph and its parameter bounds before calling a QEC
+kernel. Presentation identity retains physical order, generator order and
+redundancy. A second identifier covers the program itself. Consequently two
+programs can produce the same presentation while making different requests
+about it.
+
+\subsection{Transporting a distance upper bound}
+Let $x$ and $z$ be binary vectors satisfying $H_Zx=0$, $H_Xz=0$ and
+$x^Tz=1$. These equations imply $x\notin\row H_X$, hence $d_X\leq\wt(x)$.
+For a physical permutation matrix $P$, put $x'=Px$, $z'=Pz$ and
+$H'_a=H_aP^T$ for each sector $a$. Orthogonality of $P$ gives
+$H'_Zx'=H_Zx$, $H'_Xz'=H_Xz$ and $(x')^Tz'=x^Tz$. A permutation preserves
+Hamming weight, so the target presentation inherits this upper bound. The
+implementation checks the action of the declared permutation on every retained
+generator and on both witness vectors. It can check these identities without
+computing either minimum distance.
+
+An injected defect illustrates what scalar parameter tests miss. A source
+with X support $\{0,1\}$ and Z support $\{2,3\}$ has $n=4$ and $k=2$.
+Replacing those supports by $\{0,2\}$ and $\{1,3\}$ preserves commutation,
+row weights, and both parameters. It violates a declared identity permutation.
+The relational checker rejects this substitution even when the recorded output
+and its content hash agree. The benchmark compares direct calls, execution with
+optional checks, strict replay, and independent inspection on the same kernels.
+On the small Steane case, recording and checking take milliseconds while direct
+calls take a fraction of a millisecond. Those runs measure the cost of evidence
+handling on small inputs.
+
+\subsection{Checking a result after materialization is refused}
+A separate program specifies lifted-product seeds and requests symbolic check
+ranks. Polynomial reduction produces elementary-operation traces for both
+checks. The reader replays them and verifies the diagonal gcd contributions to
+the binary ranks. On a rectangular seed fixture with lift order 63, packed
+elimination and symbolic analysis both give $n=504$, $\rank H_X=252$ and
+$\rank H_Z=188$, hence $k=64$. The dimension proof remains checkable when the
+execution policy forbids binary expansion. The reader still trusts the
+interpretation of the symbolic checks and finite-field arithmetic.
+
+A run records the ordered edges, artifacts and consumed resources. Strict
+replay compares an execution under the same software and policy with that
+record. Scientific inspection derives claims from the stored artifacts under
+the reader's limits. For example, the upper-witness checker leaves the
+producer's account of completed distance-search layers unverified. An opt-in
+prefix check permits a dimension claim from completed nodes before a later
+expansion refusal. It identifies the stopped node without certifying the
+historical reason or the cost of that refusal.
+
+Archiving is explicit. A program and its run are stored together as canonical
+bytes addressed by a domain-separated digest. A reader checks those bytes
+and inspects the mathematical evidence again. Mathematical claims describe
+specific presentations or constructions. Neither an archive key nor an
+unsuccessful lookup classifies codes up to equivalence.
