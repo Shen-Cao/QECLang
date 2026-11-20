@@ -1,0 +1,15 @@
+{
+  "schema": "qeclang.program.v1",
+  "nodes": [
+    {"id":"base","op":"css.literal","inputs":[],"params":{"code":{"schema":"qeclang.code.v1","kind":"css","n":7,"name":"Steane","hx":[[0,2,4,6],[1,2,5,6],[3,4,5,6]],"hz":[[0,2,4,6],[1,2,5,6],[3,4,5,6]]}}},
+    {"id":"complex","op":"css.chain","inputs":["base"],"params":{}},
+    {"id":"original","op":"chain.css","inputs":["complex"],"params":{}},
+    {"id":"distance","op":"css.distance","inputs":["original"],"params":{"sector":"x","max_weight":2,"max_candidates":28}},
+    {"id":"logical","op":"css.witness","inputs":["original","distance"],"params":{}},
+    {"id":"relabeled","op":"css.permute","inputs":["original"],"params":{"permutation":[1,2,3,4,5,6,0]}},
+    {"id":"sparse","op":"css.sparse","inputs":["relabeled"],"params":{}},
+    {"id":"final","op":"sparse.css","inputs":["sparse"],"params":{}},
+    {"id":"transported","op":"css.transport","inputs":["original","final","logical"],"params":{"permutation":[1,2,3,4,5,6,0]}}
+  ],
+  "outputs": ["distance","final","transported"]
+}

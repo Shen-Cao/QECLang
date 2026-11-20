@@ -1,10 +1,7 @@
 """Configuration, provenance, and conservative evaluation for search studies."""
 from dataclasses import asdict, dataclass, fields
-from hashlib import sha256
-from pathlib import Path
-import platform
 
-from qeclang import __version__
+from qeclang.provenance import runtime_provenance
 from qeclang.analysis.certificates import certify_css_logical, verify_css_logical
 from qeclang.analysis.distance import css_distance
 from qeclang.analysis.structured import BACKENDS, analyze_lifted
@@ -61,17 +58,7 @@ class StudyConfig:
 
 
 def provenance():
-    """Identify source contents and runtime without host paths or identifiers."""
-    root = Path(__file__).resolve().parents[1]
-    digest = sha256()
-    for path in sorted(root.rglob("*.py")):
-        name = path.relative_to(root).as_posix().encode("utf-8")
-        content = path.read_bytes()
-        digest.update(len(name).to_bytes(8, "big") + name)
-        digest.update(len(content).to_bytes(8, "big") + content)
-    return {"package_version": __version__, "source_sha256": digest.hexdigest(),
-            "python_implementation": platform.python_implementation(),
-            "python_version": platform.python_version(),
+    return {**runtime_provenance(),
             "proposal_algorithm": "cyclic-scalar-fixed-support.v1",
             "evaluation_algorithm": "exact-parameters-bounded-distance.v1"}
 

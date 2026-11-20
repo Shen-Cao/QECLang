@@ -55,6 +55,20 @@ print(css_distance(code, "x", max_weight=3, max_candidates=100_000))
 
 ## Implemented scope
 
+A typed, data-only program can compute a distance interval, certify its logical
+witness, and carry that witness through a qubit relabeling. The example also
+passes through based-chain and sparse representations. Run it twice to compare
+the recorded artifacts, checks, and budget usage under the same runtime:
+
+```sh
+mkdir -p results
+qeclang run examples/programs/transport.json > results/transport-run.json
+qeclang run examples/programs/transport.json --replay results/transport-run.json
+```
+
+See [workflow programs](docs/workflow.md) for the supported operations, the
+meaning of partial results, and the trust boundary for replay.
+
 | Layer | Available functionality |
 |---|---|
 | Exact algebra | Immutable packed and sparse GF(2) matrices; exact packed rank, kernel, solve, products; guarded conversions and optional SciPy interchange |
