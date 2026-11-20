@@ -12,6 +12,8 @@ git diff --check
 ```
 
 The core is dependency-free; NumPy/SciPy, CVXPY/SCS, and Stim are optional backends.
+The separate external-comparison CI job installs the pinned `qldpc` extra on
+Python 3.12 and checks binary CSS interchange against the upstream library.
 CI runs the complete development checks on Python 3.11, 3.12 and 3.13. Dependency
 minimums describe compatibility, not a bit-for-bit numerical environment. For
 published experiments, archive an environment lock, source revision, input

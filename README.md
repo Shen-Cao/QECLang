@@ -40,6 +40,9 @@ these numerical dependencies. Install `pip install -e '.[sdp]'` for fixed-encodi
 recovery optimization with CVXPY/SCS. No commercial solver or machine-specific
 setup is required.
 Install `pip install -e '.[circuits]'` for the tested Stim 1.16 circuit backend.
+The [optional qLDPC adapter](docs/qldpc_adapter.md) uses `pip install -e '.[qldpc]'`.
+It exchanges positive binary CSS check arrays with qLDPC 0.4.1. The core
+interpreter and reference catalog also work in a dependency-free installation.
 
 ```python
 from qeclang.constructions import hypergraph_product, repetition_check
@@ -96,6 +99,13 @@ with the two weight-three upper witnesses certifies full CSS distance three.
 An [archived distance proof](docs/distance_reuse.md) can be reconstructed and
 transported to an explicitly equivalent measurement presentation. The target
 claim identifies its source interval and the physical relation used.
+
+Use `qeclang catalog list` to inspect the small [reference corpus](docs/reference_cases.md).
+`qeclang catalog lookup CODE.json` checks a candidate against those actual
+presentations, returning explicit generator maps where the check lists differ.
+Results distinguish [parameter matches, verified equality and unresolved comparisons](docs/catalog_lookup.md).
+The [qLDPC comparison](docs/qldpc_comparison.md) reports rank and sector-distance
+checks on the corpus and gives the coordinate conventions used to compare independent constructors.
 
 | Layer | Available functionality |
 |---|---|
