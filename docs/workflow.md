@@ -130,8 +130,8 @@ precisely the object to which the result applies.
 Inspection uses the reader's JSON, artifact, matrix-size, incidence-work, relation,
 and certificate-count limits. Each unique artifact is imported once. A malformed
 binding, a falsified certificate, or a refused check yields no scientific claims
-from the run. Incomplete execution records are currently unsupported by this
-checker. Strict replay remains available for recorded refusals. The CLI flag
+from the run. The default mode requires a completed run. An explicit prefix policy can
+verify earlier completed nodes. Strict replay remains available for recorded refusals. The CLI flag
 `--no-relation-checks` controls producer execution/replay only; inspection always
 checks the relevant relationships. A successful inspection gives no assurance
 about producer-reported budgets, historical checks, or code equivalence beyond
@@ -179,3 +179,24 @@ checks the elementary operations, their resulting diagonals, and the gcd/rank
 identities. An explicit `lift.css` edge exercises a separate direct physical
 incidence check. Neither verification step establishes a distance or an
 asymptotic family claim.
+
+## Inspecting a completed prefix
+
+A completed node can establish a claim even when a later node refuses to
+allocate its output. Prefix inspection is opt-in. For example, this policy
+admits the symbolic rank proof and refuses the binary expansion:
+
+```sh
+mkdir -p output
+# Expected exit status 2. Keep the JSON refusal record.
+qeclang run examples/programs/cyclic_rank.json --max-matrix-bits 1 > output/prefix.json
+qeclang run examples/programs/cyclic_rank.json --inspect output/prefix.json --allow-prefix
+```
+
+`checked_prefix` identifies the checked nodes and reports the terminal operation
+under `unverified_stop`. The verifier checks the prefix against the supplied
+program and rejects spliced steps, extraneous artifacts and unavailable outputs.
+It cannot establish why the producer stopped or how much work the producer spent.
+The rank-evidence claim describes the finite lift even though the packed output
+was never published. Without `--allow-prefix`, an incomplete run is unsupported
+for scientific inspection.

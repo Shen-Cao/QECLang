@@ -14,6 +14,7 @@ def register(commands):
     saved.add_argument("--replay", type=Path, metavar="RECORD")
     saved.add_argument("--inspect", type=Path, metavar="RECORD",
                        help="independently check saved relations and upper-bound witnesses")
+    parser.add_argument("--allow-prefix", action="store_true", help="inspect completed nodes before a reported refusal")
     parser.add_argument("--max-inspection-relations", type=int, default=512)
     parser.add_argument("--max-inspection-certificates", type=int, default=256)
     parser.add_argument("--max-record-bytes", type=int, default=32_000_000)
@@ -32,6 +33,8 @@ def run(args: argparse.Namespace):
         limits = ExecutionLimits(**{k: getattr(args, k) for k in vars(ExecutionLimits())})
         policy = {"limits": limits, "verify_relations": not args.no_relation_checks}
         program = Program.load(args.program)
+        if args.allow_prefix and args.inspect is None:
+            raise ValueError('--allow-prefix applies only to inspection')
         if args.inspect is not None:
             from qeclang.workflow.inspect_run import InspectionLimits, inspect_run
             from qeclang.workflow.import_artifact import ImportLimits
@@ -46,8 +49,9 @@ def run(args: argparse.Namespace):
                                   max_payload_items=8_000_000),
                 artifacts=ImportLimits(max_bytes=limits.max_artifact_bytes, max_axis=limits.max_axis,
                     max_matrix_bits=limits.max_matrix_bits, max_validation_work=limits.max_validation_work))
-            result = inspect_run(program, _read_record(args.inspect, args.max_record_bytes), limits=inspection)
-            ok = result['status'] == 'checked'
+            result = inspect_run(program, _read_record(args.inspect, args.max_record_bytes), limits=inspection,
+                                 allow_prefix=args.allow_prefix)
+            ok = result['status'] in ('checked', 'checked_prefix')
         elif args.replay is None:
             result = execute(program, **policy)
             ok = result["status"] == "completed"

@@ -40,11 +40,39 @@ class InspectionLimits:
 _RUN_FIELDS = {"schema", "program", "status", "runtime", "verify_relations", "outputs",
                "artifacts", "ledger", "trace"}
 _STEP_FIELDS = {"node", "op", "inputs", "status", "output", "evidence", "spent"}
+_STOPPED = frozenset(('budget_exhausted', 'invalid_input', 'verification_failed', 'evidence_unavailable'))
+_STOP_FIELDS = frozenset(('node', 'op', 'inputs', 'status', 'reason', 'spent'))
 
 
 def _require(ok, message):
     if not ok:
         raise ValueError(message)
+
+
+def _spent_shape(value):
+    """Validate recorded counter syntax without certifying historical usage."""
+    _require(type(value) is dict and all(type(k) is str and bool(k) and type(v) is int and v >= 0
+                                       for k, v in value.items()), 'invalid recorded spent counters')
+
+
+def _stop_marker(node, step, status, bindings):
+    """Bind a terminal refusal marker; its explanation/cost remains unverified."""
+    _require(type(step) is dict and _STOP_FIELDS <= step.keys(), 'invalid terminal stop marker')
+    _require((step['node'], step['op'], step['status']) == (node.id, node.op, status),
+             'terminal marker differs from next program node or run status')
+    _require(step['inputs'] == [bindings[i] for i in node.inputs], 'terminal input digest mismatch')
+    _require(type(step['reason']) is str, 'terminal reason must be a string')
+    _spent_shape(step['spent'])
+    if status == 'budget_exhausted':
+        _require(type(step.get('resource')) is str and bool(step['resource']),
+                 'budget stop requires a resource name')
+        extra = {'resource'} if step['resource'] == 'artifact_admission' else {'resource', 'requested', 'available'}
+        _require(set(step) == _STOP_FIELDS | extra, 'invalid budget stop fields')
+        if 'requested' in extra:
+            _require(all(type(step[key]) is int and step[key] >= 0 for key in ('requested', 'available')),
+                     'budget stop amounts must be nonnegative integers')
+    else:
+        _require(set(step) == _STOP_FIELDS, 'non-budget stop contains unexpected fields')
 
 
 def _literal(code, record):
@@ -87,6 +115,8 @@ class _Reader:
                                     max_validation_work=limits.artifacts.max_validation_work)
         self.lifts = LiftInspection(limits.max_rank_steps, limits.max_lift_comparison_units)
         self.counts = {'relation_checks': 0, 'certificates': 0}
+        self.prefix_nodes = ()
+        self.stop = None
 
     def charge(self, key):
         if self.counts[key] >= getattr(self.limits, 'max_' + key):
@@ -99,23 +129,32 @@ class _Reader:
                 'lift_comparison_units': self.limits.max_lift_comparison_units - self.lifts.remaining_comparison_units}
 
 
-def _inspect(program, record, reader):
+def _inspect(program, record, reader, allow_prefix):
     limits = reader.limits
     validate_json_data(record, limits=limits.record)
     _require(type(record) is dict and set(record) == _RUN_FIELDS and
              record['schema'] == 'qeclang.run.v1', "invalid run schema/fields")
     _require(record['program'] == program.fingerprint(), "program fingerprint mismatch")
-    if record['status'] in ('budget_exhausted', 'invalid_input', 'verification_failed', 'evidence_unavailable'):
+    stopped = record['status'] in _STOPPED if type(record['status']) is str else False
+    if stopped and not allow_prefix:
         return 'unsupported', [], [], [], 'inspection requires a completed run'
-    _require(record['status'] == 'completed', 'unknown run status')
+    _require(stopped or record['status'] == 'completed', 'unknown run status')
     trace, records = record['trace'], record['artifacts']
-    _require(type(trace) is list and len(trace) == len(program.nodes), "incomplete or extra trace nodes")
-    _require(type(records) is dict and len(records) <= len(trace), "invalid retained artifact map")
+    if stopped:
+        _require(type(trace) is list and 1 <= len(trace) <= len(program.nodes),
+                 'stopped run must contain a prefix and exactly one terminal marker')
+        completed = trace[:-1]
+    else:
+        _require(type(trace) is list and len(trace) == len(program.nodes), "incomplete or extra trace nodes")
+        completed = trace
+    _require(type(records) is dict and len(records) <= len(completed), "invalid retained artifact map")
     values, bindings, claims, relations, reported = {}, {}, [], [], []
-    for node, step in zip(program.nodes, trace):
+    for node, step in zip(program.nodes, completed):
         _require(type(step) is dict and set(step) == _STEP_FIELDS and step['status'] == 'completed',
                  "invalid completed trace step")
         _require((step['node'], step['op']) == (node.id, node.op), "trace instruction mismatch")
+        if stopped:
+            _spent_shape(step['spent'])
         refs = [bindings[i] for i in node.inputs]
         _require(refs == step['inputs'], "trace input digest mismatch")
         key = step['output']
@@ -162,12 +201,19 @@ def _inspect(program, record, reader):
                            'predicate': 'distance_upper_bound', 'sector': node.sector,
                            'bound': value['claim']['distance_upper_bound'], 'evidence': key})
         bindings[node.id] = key
+    if stopped:
+        terminal = program.nodes[len(completed)]
+        _stop_marker(terminal, trace[-1], record['status'], bindings)
     _require(set(values) == set(records), 'unreferenced artifact')
-    _require(record['outputs'] == {i: bindings[i] for i in program.outputs}, 'output binding mismatch')
-    return 'checked', claims, relations, reported, None
+    expected_outputs = {i: bindings[i] for i in program.outputs if i in bindings}
+    _require(record['outputs'] == expected_outputs, 'output binding mismatch')
+    if stopped:
+        reader.prefix_nodes = tuple(bindings)
+        reader.stop = {'node': terminal.id, 'status': record['status']}
+    return 'checked_prefix' if stopped else 'checked', claims, relations, reported, None
 
 
-def inspect_run(program: Program, record, *, limits=InspectionLimits()):
+def inspect_run(program: Program, record, *, limits=InspectionLimits(), allow_prefix=False):
     """Check graph bindings to the caller's program and verify relational/parity predicates.
 
     The checker trusts its own validators and input program. Success returns only
@@ -175,12 +221,21 @@ def inspect_run(program: Program, record, *, limits=InspectionLimits()):
     no lower bound, exactness or k=0 claim. Machine/runtime identity, historical
     spend, and producer-assigned assurance are outside this scientific check.
     It does not execute the program, solve equations, or enumerate error weights.
+
+    allow_prefix=True additionally accepts a structurally valid completed prefix
+    ending in one recognized stop marker. Only retained completed-node evidence
+    is checked. The terminal node/suffix is never certified; its reported cause
+    and spend are unverified even when the preceding prefix passes inspection.
+    checked_prefix_nodes identifies admitted, bound records; only the emitted
+    claims identify independently verified mathematical predicates.
     """
     if not isinstance(program, Program) or not isinstance(limits, InspectionLimits):
         raise TypeError('inspect_run requires Program and InspectionLimits')
+    if type(allow_prefix) is not bool:
+        raise TypeError('allow_prefix must be boolean')
     reader = _Reader(limits)
     try:
-        status, claims, relations, reported, reason = _inspect(program, record, reader)
+        status, claims, relations, reported, reason = _inspect(program, record, reader, allow_prefix)
     except (InspectionQuota, JSONLimitExceeded, ImportLimitExceeded) as exc:
         status, claims, relations, reported, reason = 'budget_exhausted', [], [], [], str(exc)
     except (TypeError, ValueError) as exc:
@@ -189,10 +244,17 @@ def inspect_run(program: Program, record, *, limits=InspectionLimits()):
     scope = ('based_relations_css_upper_witnesses_and_traced_ranks' if structured
              else 'based_relations_and_css_upper_witnesses')
     checked_nodes = {c['node'] for c in claims}
-    return {'schema': 'qeclang.inspection.v1', 'program': program.fingerprint(), 'status': status,
+    inspected_nodes = ({node.id for node in program.nodes} if status == 'checked'
+                       else set(reader.prefix_nodes) if status == 'checked_prefix' else set())
+    result = {'schema': 'qeclang.inspection.v1', 'program': program.fingerprint(), 'status': status,
             'scope': scope, 'claims': claims, 'reader_usage': reader.summary(),
             'relations': relations, 'reported_distance_nodes': reported, 'reason': reason,
             'unverified_parameter_nodes': [n.id for n in program.nodes if n.op == 'lift.parameters'
-                                          and n.id not in checked_nodes] if status == 'checked' else [],
+                                          and n.id in inspected_nodes and n.id not in checked_nodes],
             'unverified': ['distance_lower_bounds', 'distance_exactness', 'no_logicals',
                            'runtime', 'ledger', 'candidate_counts', 'recorded_assurance']}
+
+    if status == 'checked_prefix':
+        result.update(checked_prefix_nodes=list(reader.prefix_nodes), unverified_stop=reader.stop.copy())
+        result['unverified'].extend(('stop_cause', 'stop_spend'))
+    return result

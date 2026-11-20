@@ -94,7 +94,7 @@ same small packed-artifact cap must emit the same checked dimension claim. A
 second program requesting `lift.css` must refuse that node with
 `budget_exhausted` on `matrix_bits`. The refused run's step and requested/available
 amounts are retained. The independent claim comes from the separately completed
-symbolic-only run; partial runs are not silently certified.
+symbolic-only run; default inspection requires a completed run. The optional prefix verifier can also check saved evidence preceding an expansion refusal.
 
 This checks explicit representation choice under a declared resource policy.
 The payload cap excludes object overhead and temporary or solver workspace. It
