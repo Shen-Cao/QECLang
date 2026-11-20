@@ -108,13 +108,19 @@ def _orbits(orders, budget):
 
 def abelian_rank(matrix: GroupAlgebraMatrix, *, max_characters=10_000,
                  max_field_degree=64, max_candidates=4096, max_steps=10_000_000,
-                 max_entries=1_000_000, max_factors=16):
+                 max_entries=1_000_000, max_factors=16, _meter=None):
     """Exact binary rank for products of odd cyclic groups, without expansion.
 
     The maximum field degree bounds multiplicative-order growth, independently
     of the number of characters. Polynomial/root searches and arithmetic have
     separate deterministic budgets. No floating-point roots are used.
+    Internal _meter shares an enclosing ceiling; result.steps is invocation-local.
     """
+    nonnegative_integer(max_steps, "max_steps")
+    if _meter is not None and not isinstance(_meter, ArithmeticBudget):
+        raise TypeError("_meter must be ArithmeticBudget")
+    budget = ArithmeticBudget(max_steps) if _meter is None else _meter
+    start = budget.used
     if not isinstance(matrix, GroupAlgebraMatrix):
         raise TypeError("abelian rank requires GroupAlgebraMatrix")
     limits = (max_characters, max_field_degree, max_candidates, max_entries, max_factors)
@@ -129,7 +135,6 @@ def abelian_rank(matrix: GroupAlgebraMatrix, *, max_characters=10_000,
         raise WorkLimitExceeded("character set exceeds max_characters")
     if max(matrix.nrows, matrix.ncols, matrix.nrows*matrix.ncols) > max_entries:
         raise WorkLimitExceeded("seed matrix exceeds max_entries")
-    budget = ArithmeticBudget(max_steps)
     exponent = lcm(*matrix.orders)
     field = _splitting_field(exponent, max_field_degree, max_candidates, budget)
     root = _root(field, exponent, max_candidates, budget)
@@ -162,4 +167,4 @@ def abelian_rank(matrix: GroupAlgebraMatrix, *, max_characters=10_000,
         rank = field.rank(rows, matrix.ncols, max_entries=max_entries, budget=budget)
         components.append(AbelianRankComponent(character, orbit_size, rank))
     return AbelianRankResult(matrix.orders, matrix.shape, field.modulus, root, exponent,
-                             tuple(components), sum(c.orbit_size*c.rank for c in components), budget.used)
+                             tuple(components), sum(c.orbit_size*c.rank for c in components), budget.used - start)

@@ -45,13 +45,20 @@ class CyclicRankResult:
 
 
 def cyclic_rank(matrix: GroupAlgebraMatrix, *, max_degree=512, max_steps=10_000_000,
-                max_entries=1_000_000, factorization=None) -> CyclicRankResult:
+                max_entries=1_000_000, factorization=None, _meter=None) -> CyclicRankResult:
     """Exact binary rank without expansion; unsupported rings are rejected.
 
     ``max_degree`` bounds L, and ``max_entries`` bounds seed dimensions/product.
     A supplied PolynomialFactorization may be reused but is independently
     verified, including its modulus; it is never trusted as an assertion.
+    Internal _meter shares an enclosing arithmetic ceiling instead of max_steps;
+    reported steps always count only this invocation's accepted proxy charges.
     """
+    nonnegative_integer(max_steps, "max_steps")
+    if _meter is not None and not isinstance(_meter, ArithmeticBudget):
+        raise TypeError("_meter must be ArithmeticBudget")
+    budget = ArithmeticBudget(max_steps) if _meter is None else _meter
+    start = budget.used
     if not isinstance(matrix, GroupAlgebraMatrix):
         raise TypeError("cyclic rank requires a GroupAlgebraMatrix")
     if len(matrix.orders) != 1:
@@ -65,7 +72,6 @@ def cyclic_rank(matrix: GroupAlgebraMatrix, *, max_degree=512, max_steps=10_000_
         raise WorkLimitExceeded("cyclic modulus exceeds max_degree")
     if max(matrix.nrows, matrix.ncols, matrix.nrows * matrix.ncols) > entries:
         raise WorkLimitExceeded("cyclic seed matrix exceeds max_entries")
-    budget = ArithmeticBudget(max_steps)
     modulus = (1 << lift) | 1
     if factorization is None:
         factorization = factor_squarefree(modulus, max_degree=limit, budget=budget)
@@ -97,7 +103,7 @@ def cyclic_rank(matrix: GroupAlgebraMatrix, *, max_degree=512, max_steps=10_000_
         rank = field.rank(rows, matrix.ncols, max_entries=entries, budget=budget)
         components.append(CyclicRankComponent(factor, field.degree, rank))
     return CyclicRankResult(lift, matrix.shape, factorization, tuple(components),
-                            sum(c.degree * c.rank for c in components), budget.used)
+                            sum(c.degree * c.rank for c in components), budget.used - start)
 
 
 __all__ = ["CyclicRankComponent", "CyclicRankResult", "cyclic_rank"]

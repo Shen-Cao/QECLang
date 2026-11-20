@@ -85,14 +85,20 @@ def _component(matrix, values, odd_parts, two_parts, field, budget):
 def abelian_rank_mixed(matrix: GroupAlgebraMatrix, *, max_component_entries=1_000_000,
                        max_component_axis=10_000, max_characters=10_000,
                        max_field_degree=64, max_candidates=4096, max_steps=10_000_000,
-                       max_seed_entries=100_000, max_factors=16) -> MixedAbelianRankResult:
+                       max_seed_entries=100_000, max_factors=16, _meter=None) -> MixedAbelianRankResult:
     """Exact binary rank for arbitrary finite products of cyclic groups.
 
     Component dimensions are m*P by n*P, P the order of the 2-primary subgroup.
     Axis/entry guards are checked before allocation, including empty dimensions.
     Arithmetic work is shared across splitting-field search and every component.
     The rank sum uses odd Frobenius orbit sizes, never semisimplicity of 2-groups.
+    Internal _meter shares an enclosing ceiling; result.steps is invocation-local.
     """
+    nonnegative_integer(max_steps, "max_steps")
+    if _meter is not None and not isinstance(_meter, ArithmeticBudget):
+        raise TypeError("_meter must be ArithmeticBudget")
+    budget = ArithmeticBudget(max_steps) if _meter is None else _meter
+    start = budget.used
     if not isinstance(matrix, GroupAlgebraMatrix):
         raise TypeError("mixed abelian rank requires a GroupAlgebraMatrix")
     limits = {"max_component_entries": max_component_entries,
@@ -115,7 +121,6 @@ def abelian_rank_mixed(matrix: GroupAlgebraMatrix, *, max_component_entries=1_00
         raise WorkLimitExceeded("regular component exceeds max_component_axis")
     if prod(component_shape) > max_component_entries:
         raise WorkLimitExceeded("regular component exceeds max_component_entries")
-    budget = ArithmeticBudget(max_steps)
     exponent = lcm(*odd_parts)
     field = _splitting_field(exponent, max_field_degree, max_candidates, budget)
     root = _root(field, exponent, max_candidates, budget)
@@ -130,7 +135,7 @@ def abelian_rank_mixed(matrix: GroupAlgebraMatrix, *, max_component_entries=1_00
         components.append(AbelianRankComponent(character, orbit_size, rank))
     return MixedAbelianRankResult(matrix.orders, odd_parts, two_parts, matrix.shape,
                                    field.modulus, root, exponent, tuple(components),
-                                   sum(c.orbit_size * c.rank for c in components), budget.used)
+                                   sum(c.orbit_size * c.rank for c in components), budget.used - start)
 
 
 __all__ = ["MixedAbelianRankResult", "abelian_rank_mixed"]

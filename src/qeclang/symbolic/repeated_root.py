@@ -111,16 +111,22 @@ def _apply(rows, ncols, operation, degree, budget):
 def cyclic_rank_general(matrix: GroupAlgebraMatrix, *, max_lift=512,
                         max_polynomial_degree=4096, max_steps=10_000_000,
                         max_entries=1_000_000, max_operations=100_000,
-                        record_operations=False) -> CyclicPolynomialRankResult:
+                        record_operations=False, _meter=None) -> CyclicPolynomialRankResult:
     """Explicit resource-bounded fallback for any positive cyclic order.
 
     Degree growth can terminate this algorithm before a result is available.
     A limit exception never returns a partial rank. An optional elementary
     operation trace supports independent replay with verify_rank_certificate.
+    Internal _meter shares an enclosing arithmetic ceiling instead of max_steps;
+    result.steps remains local to this invocation.
     """
     if type(record_operations) is not bool:
         raise ValueError("record_operations must be boolean")
-    budget = ArithmeticBudget(max_steps)
+    nonnegative_integer(max_steps, "max_steps")
+    if _meter is not None and not isinstance(_meter, ArithmeticBudget):
+        raise TypeError("_meter must be ArithmeticBudget")
+    budget = ArithmeticBudget(max_steps) if _meter is None else _meter
+    start = budget.used
     operation_limit = nonnegative_integer(max_operations, "max_operations")
     rows, lift, degree = _input(matrix, max_lift, max_polynomial_degree, max_entries, budget)
     trace = [] if record_operations else None
@@ -184,17 +190,22 @@ def cyclic_rank_general(matrix: GroupAlgebraMatrix, *, max_lift=512,
     gcds = tuple(poly_gcd(value, modulus, budget=budget) for value in diagonal)
     rank = sum(lift - (gcd.bit_length() - 1) for gcd in gcds)
     return CyclicPolynomialRankResult(lift, matrix.shape, diagonal, gcds, rank,
-                                      budget.used, count, None if trace is None else tuple(trace))
+                                      budget.used - start, count, None if trace is None else tuple(trace))
 
 
 def verify_rank_certificate(matrix, result, *, max_lift=512, max_polynomial_degree=4096,
                             max_steps=10_000_000, max_entries=1_000_000,
-                            max_operations=100_000):
+                            max_operations=100_000, _meter=None):
     """Replay a recorded unimodular trace and recompute the diagonal gcd rank.
 
     This verifier does not call the diagonalization algorithm or binary lowering.
     Malformed/tampered evidence returns False; resource-limit errors propagate.
+    Internal _meter retains accepted proxy charges even if replay is refused.
     """
+    nonnegative_integer(max_steps, "max_steps")
+    if _meter is not None and not isinstance(_meter, ArithmeticBudget):
+        raise TypeError("_meter must be ArithmeticBudget")
+    budget = ArithmeticBudget(max_steps) if _meter is None else _meter
     if not isinstance(result, CyclicPolynomialRankResult) or not isinstance(result.operations, tuple):
         return False
     if (type(result.rank) is not int or result.rank < 0 or
@@ -206,7 +217,6 @@ def verify_rank_certificate(matrix, result, *, max_lift=512, max_polynomial_degr
     operation_limit = nonnegative_integer(max_operations, "max_operations")
     if len(result.operations) > operation_limit:
         raise WorkLimitExceeded("certificate exceeds max_operations")
-    budget = ArithmeticBudget(max_steps)
     rows, lift, degree = _input(matrix, max_lift, max_polynomial_degree, max_entries, budget)
     if result.shape != matrix.shape or result.lift != lift:
         return False

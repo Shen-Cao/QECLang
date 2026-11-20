@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 from qeclang.algebra.binary import nonnegative_integer
-from qeclang.algebra.polynomial import WorkLimitExceeded
+from qeclang.algebra.polynomial import ArithmeticBudget, WorkLimitExceeded
 from qeclang.constructions.lifted import LiftedProduct
 from qeclang.constructions.records import fingerprint
 from qeclang.symbolic.cyclic_analysis import CyclicRankResult, cyclic_rank
@@ -55,6 +55,8 @@ def analyze_lifted(construction: LiftedProduct, *, backend="crt", max_degree=512
     max_degree applies to cyclic backends, field/character/factor limits to
     abelian backends, and component limits only to mixed-abelian. Other inactive
     backend-specific limits are validated but unused. Traces require polynomial.
+    steps records accepted arithmetic-proxy charges even on symbolic refusal;
+    rejected charge requests are not spent. Packed work remains unmetered (None).
     """
     if not isinstance(construction, LiftedProduct):
         raise TypeError("analysis requires LiftedProduct")
@@ -75,19 +77,21 @@ def analyze_lifted(construction: LiftedProduct, *, backend="crt", max_degree=512
         nonnegative_integer(value, name)
     base = {"construction_fingerprint": fingerprint(construction), "n": construction.n,
             "method": backend}
+    zero_steps = None if backend == "packed" else 0
     if backend == "polynomial" and len(construction.a.orders) != 1:
-        return StructuredParameters(**base, status="unsupported",
+        return StructuredParameters(**base, status="unsupported", steps=zero_steps,
                                     reason="polynomial backend requires one cyclic factor")
     if backend == "crt" and (len(construction.a.orders) != 1 or construction.a.orders[0] % 2 == 0):
-        return StructuredParameters(**base, status="unsupported",
+        return StructuredParameters(**base, status="unsupported", steps=zero_steps,
                                     reason="CRT field backend requires one odd cyclic factor")
     if backend == "abelian" and any(order % 2 == 0 for order in construction.a.orders):
-        return StructuredParameters(**base, status="unsupported",
+        return StructuredParameters(**base, status="unsupported", steps=zero_steps,
                                     reason="abelian character backend requires odd cyclic factors")
     a, b = construction.a, construction.b
     blocks = (a.ncols*b.ncols + a.nrows*b.nrows) * (a.nrows*b.ncols + a.ncols*b.nrows)
     if blocks > max_blocks or max(a.nrows, a.ncols, b.nrows, b.ncols)**2 > max_blocks:
-        return StructuredParameters(**base, status="budget_exhausted", reason="symbolic block budget")
+        return StructuredParameters(**base, status="budget_exhausted", steps=zero_steps,
+                                    reason="symbolic block budget")
     if backend == "packed":
         mx, mz = construction.check_counts
         if (construction.n * (mx + mz) + mx*mz > max_bits
@@ -97,20 +101,22 @@ def analyze_lifted(construction: LiftedProduct, *, backend="crt", max_degree=512
         return StructuredParameters(**base, status="exact", k=code.k,
                                     rank_x=code.hx.rank(), rank_z=code.hz.rank())
     hx, hz = construction.symbolic_checks(max_blocks=max_blocks)
+    meter = ArithmeticBudget(max_steps)
     try:
         if backend == "polynomial":
             options = dict(max_lift=max_degree, max_polynomial_degree=max_polynomial_degree,
-                           max_entries=max_entries, record_operations=record_operations)
+                           max_entries=max_entries, record_operations=record_operations, _meter=meter)
             x = cyclic_rank_general(hx, max_steps=max_steps, max_operations=max_operations, **options)
-            z = cyclic_rank_general(hz, max_steps=max_steps-x.steps,
+            z = cyclic_rank_general(hz, max_steps=max_steps,
                                     max_operations=max_operations-x.operation_count, **options)
         elif backend == "crt":
-            x = cyclic_rank(hx, max_degree=max_degree, max_steps=max_steps, max_entries=max_entries)
-            z = cyclic_rank(hz, max_degree=max_degree, max_steps=max_steps-x.steps,
-                            max_entries=max_entries, factorization=x.factorization)
+            x = cyclic_rank(hx, max_degree=max_degree, max_steps=max_steps, max_entries=max_entries,
+                            _meter=meter)
+            z = cyclic_rank(hz, max_degree=max_degree, max_steps=max_steps,
+                            max_entries=max_entries, factorization=x.factorization, _meter=meter)
         else:
             options = dict(max_characters=max_characters, max_field_degree=max_field_degree,
-                           max_candidates=max_field_candidates, max_factors=max_factors)
+                           max_candidates=max_field_candidates, max_factors=max_factors, _meter=meter)
             if backend == "abelian":
                 rank_function = abelian_rank
                 options["max_entries"] = max_entries
@@ -120,9 +126,9 @@ def analyze_lifted(construction: LiftedProduct, *, backend="crt", max_degree=512
                                max_component_entries=max_component_entries,
                                max_component_axis=max_component_axis)
             x = rank_function(hx, max_steps=max_steps, **options)
-            z = rank_function(hz, max_steps=max_steps-x.steps, **options)
+            z = rank_function(hz, max_steps=max_steps, **options)
     except WorkLimitExceeded as error:
-        return StructuredParameters(**base, status="budget_exhausted", reason=str(error))
+        return StructuredParameters(**base, status="budget_exhausted", reason=str(error), steps=meter.used)
     return StructuredParameters(**base, status="exact", k=construction.n-x.rank-z.rank,
-                                rank_x=x.rank, rank_z=z.rank, steps=x.steps+z.steps,
+                                rank_x=x.rank, rank_z=z.rank, steps=meter.used,
                                 x_evidence=x, z_evidence=z)
