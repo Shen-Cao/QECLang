@@ -9,6 +9,10 @@ from math import isfinite
 from pathlib import Path
 
 
+class JSONLimitExceeded(ValueError):
+    """A well-defined JSON admission budget was exceeded."""
+
+
 def integer(value, name, *, maximum=None):
     if type(value) is not int or value < 0 or (maximum is not None and value > maximum):
         raise ValueError(f"{name} must be a nonnegative integer within its limit")
@@ -52,19 +56,19 @@ def _payload(value, limits):
         items += count
         size += bytes_count
         if items > limits.max_payload_items:
-            raise ValueError("JSON payload exceeds max_payload_items")
+            raise JSONLimitExceeded("JSON payload exceeds max_payload_items")
         if size > limits.max_bytes:
-            raise ValueError("canonical JSON payload exceeds max_bytes")
+            raise JSONLimitExceeded("canonical JSON payload exceeds max_bytes")
     def visit(value, depth):
         charge(1)
         if type(value) in (dict, list):
             if depth + 1 > limits.max_payload_depth:
-                raise ValueError("JSON payload exceeds max_payload_depth")
+                raise JSONLimitExceeded("JSON payload exceeds max_payload_depth")
             if id(value) in active:
                 raise ValueError("cyclic Python containers are not JSON data")
             needed = len(value) * (2 if type(value) is dict else 1)
             if needed > limits.max_payload_items - items:
-                raise ValueError("JSON payload exceeds max_payload_items")
+                raise JSONLimitExceeded("JSON payload exceeds max_payload_items")
             active.add(id(value))
             charge(bytes_count=2 + max(0, len(value)-1))
             if type(value) is dict:
@@ -80,21 +84,22 @@ def _payload(value, limits):
             active.remove(id(value))
         elif type(value) is str:
             if len(value) > limits.max_string_length:
-                raise ValueError("JSON payload exceeds max_string_length")
+                raise JSONLimitExceeded("JSON payload exceeds max_string_length")
             if any(0xD800 <= ord(char) <= 0xDFFF for char in value):
                 raise ValueError("JSON strings must contain valid Unicode scalar values")
             charge(bytes_count=len(canonical_json(value)))
         elif type(value) is int:
             if value.bit_length() > limits.max_integer_bits:
-                raise ValueError("JSON payload integer exceeds max_integer_bits")
+                raise JSONLimitExceeded("JSON payload integer exceeds max_integer_bits")
             charge(bytes_count=len(str(value)))
         elif value is None or type(value) is bool:
             charge(bytes_count=len(canonical_json(value)))
         elif type(value) is float and isfinite(value):
             charge(bytes_count=len(canonical_json(value)))
         else:
-            raise ValueError("JSON payload payload must contain finite JSON data only")
+            raise ValueError("JSON payload must contain finite JSON data only")
     visit(value, 0)
+    return size
 
 
 def _text_preflight(text, limits):
@@ -118,7 +123,7 @@ def _text_preflight(text, limits):
             items += 1
             token = False
             if depth > limits.max_payload_depth:
-                raise ValueError("JSON payload exceeds max_payload_depth")
+                raise JSONLimitExceeded("JSON payload exceeds max_payload_depth")
         elif char in "]}":
             depth -= 1
             token = False
@@ -130,13 +135,18 @@ def _text_preflight(text, limits):
             items += 1
             token = True
         if items > limits.max_payload_items:
-            raise ValueError("JSON payload exceeds max_payload_items")
+            raise JSONLimitExceeded("JSON payload exceeds max_payload_items")
+
+
+def measure_json_data(data, *, limits=JSONLimits()):
+    """Validate caller-owned JSON and return its canonical ASCII byte count."""
+    _check_limits(limits)
+    return _payload(data, limits)
 
 
 def validate_json_data(data, *, limits=JSONLimits()):
     """Validate existing Python JSON containers without constructing runtime objects."""
-    _check_limits(limits)
-    _payload(data, limits)
+    measure_json_data(data, limits=limits)
     return data
 
 
@@ -145,12 +155,12 @@ def loads_json(content, *, limits=JSONLimits()):
     _check_limits(limits)
     if type(content) is bytes:
         if len(content) > limits.max_bytes:
-            raise ValueError("JSON input exceeds max_bytes")
+            raise JSONLimitExceeded("JSON input exceeds max_bytes")
         content = content.decode("utf-8")
     elif type(content) is not str:
         raise TypeError("program JSON must be str or UTF-8 bytes")
     if len(content) > limits.max_bytes or len(content.encode("utf-8")) > limits.max_bytes:
-        raise ValueError("JSON input exceeds max_bytes")
+        raise JSONLimitExceeded("JSON input exceeds max_bytes")
     _text_preflight(content, limits)
     def unique(pairs):
         value = {}
@@ -161,10 +171,10 @@ def loads_json(content, *, limits=JSONLimits()):
         return value
     def integer(text):
         if len(text.lstrip("-")) > (limits.max_integer_bits * 30103)//100000 + 1:
-            raise ValueError("JSON integer exceeds max_integer_bits")
+            raise JSONLimitExceeded("JSON integer exceeds max_integer_bits")
         value = int(text)
         if value.bit_length() > limits.max_integer_bits:
-            raise ValueError("JSON integer exceeds max_integer_bits")
+            raise JSONLimitExceeded("JSON integer exceeds max_integer_bits")
         return value
     def real(text):
         value = float(text)
@@ -184,8 +194,9 @@ def load_json(path, *, limits=JSONLimits()):
     with Path(path).open("rb") as stream:
         content = stream.read(limits.max_bytes + 1)
     if len(content) > limits.max_bytes:
-        raise ValueError("JSON input exceeds max_bytes")
+        raise JSONLimitExceeded("JSON input exceeds max_bytes")
     return loads_json(content, limits=limits)
 
 
-__all__ = ["JSONLimits", "loads_json", "load_json", "validate_json_data", "canonical_json"]
+__all__ = ["JSONLimitExceeded", "JSONLimits", "loads_json", "load_json", "validate_json_data",
+           "measure_json_data", "canonical_json"]
