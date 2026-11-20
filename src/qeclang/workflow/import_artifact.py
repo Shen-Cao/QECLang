@@ -13,6 +13,8 @@ from qeclang.algebra import BinaryMatrix, SparseBinaryMatrix
 from qeclang.codes import CSSCode, ChainComplex, SparseCSSCode
 from .artifacts import ARTIFACT_SCHEMA, CHAIN_SCHEMA, DISTANCE_SCHEMA, KINDS, describe
 from .json_input import JSONLimitExceeded, JSONLimits, canonical_json, measure_json_data
+from .lift_artifacts import (LiftArtifactLimitExceeded, import_lift_payload,
+                             import_parameter_payload)
 
 
 class ArtifactImportError(ValueError):
@@ -41,6 +43,13 @@ class ImportLimits:
     max_payload_depth: int = 32
     max_string_length: int = 8192
     max_integer_bits: int = 4096
+    max_lift_sites: int = 100_000
+    max_lift_seed_axis: int = 1024
+    max_lift_seed_entries: int = 100_000
+    max_lift_terms: int = 100_000
+    max_lift_group_size: int = 100_000
+    max_lift_factors: int = 16
+    max_parameter_entries: int = 100_000
 
     def __post_init__(self):
         for item in fields(self):
@@ -224,13 +233,21 @@ def import_artifact(record, expected_kind, *, limits=ImportLimits(), budget=None
     if record["digest"] != sha256(encoded.encode("utf-8")).hexdigest():
         raise ArtifactImportError("artifact digest mismatch")
     try:
-        value = (_code_value(record["payload"], expected_kind, limits, budget)
-                 if expected_kind in ("css", "chain", "sparse_css")
-                 else _claim_value(record["payload"], expected_kind, limits))
-        if canonical_json(describe(expected_kind, value)) != canonical_json(record):
+        if expected_kind in ("css", "chain", "sparse_css"):
+            value = _code_value(record["payload"], expected_kind, limits, budget)
+        elif expected_kind == "lift":
+            value = import_lift_payload(record["payload"], limits=limits)
+        elif expected_kind == "parameters":
+            value = import_parameter_payload(record["payload"], limits=limits)
+        else:
+            value = _claim_value(record["payload"], expected_kind, limits)
+        json_limits = JSONLimits(**{item.name: getattr(limits, item.name) for item in fields(JSONLimits)})
+        if canonical_json(describe(expected_kind, value, limits=json_limits)) != canonical_json(record):
             raise ArtifactImportError("artifact payload is not canonical")
     except ImportLimitExceeded:
         raise
+    except (JSONLimitExceeded, LiftArtifactLimitExceeded) as error:
+        raise ImportLimitExceeded(str(error)) from error
     except (ValueError, TypeError, KeyError, AttributeError) as error:
         raise ArtifactImportError(str(error)) from error
     return value

@@ -14,11 +14,14 @@ from qeclang.algebra.binary import set_bits
 from qeclang.analysis.certificate_io import SCHEMA as CERTIFICATE_SCHEMA
 from qeclang.codes import CSSCode, ChainComplex, SparseCSSCode
 from qeclang.io import SCHEMA as CODE_SCHEMA, to_dict
+from .json_input import JSONLimits, validate_json_data
+from .lift_artifacts import PARAMETERS_SCHEMA, lift_payload, parameter_payload
 
 ARTIFACT_SCHEMA = "qeclang.workflow.artifact.v1"
 CHAIN_SCHEMA = "qeclang.workflow.chain.v1"
 DISTANCE_SCHEMA = "qeclang.workflow.distance.v1"
-KINDS = frozenset(("css", "chain", "sparse_css", "distance", "witness"))
+KINDS = frozenset(("css", "chain", "sparse_css", "distance", "witness", "lift", "parameters"))
+_SERIALIZATION_LIMITS = JSONLimits(max_integer_bits=4096)
 _DISTANCE_FIELDS = frozenset(("source", "sector", "lower_bound", "upper_bound", "witness",
                               "searched_through", "candidates", "status"))
 _HEX_DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -101,16 +104,19 @@ def _witness(value):
     return value
 
 
-def describe(kind, value):
+def describe(kind, value, *, limits=_SERIALIZATION_LIMITS):
     """Return detached JSON-compatible kind/digest/payload for a workflow value.
 
     The digest hashes canonical JSON containing ARTIFACT_SCHEMA, kind, and the
     normalized payload. It identifies a representation/result record, not a
     code-equivalence class, proof, authenticity signature, or resource policy.
     Code names are discarded so equal digests have equal canonical payloads.
-    Caller execution limits must bound values before serialization; this helper
+    Caller execution limits must bound representation construction. Bounded JSON
+    admission checks all payload integers before decimal conversion; this helper
     neither lowers sparse data nor performs rank, distance, or certificate checks.
     """
+    if not isinstance(limits, JSONLimits):
+        raise TypeError("artifact serialization limits must be JSONLimits")
     if not isinstance(kind, str) or kind not in KINDS:
         raise ValueError("unsupported workflow artifact kind")
     if kind == "css":
@@ -131,10 +137,17 @@ def describe(kind, value):
                    "degree_order": [0, 1, 2], "matrix_action": "column_vectors",
                    "dimensions": list(value.dimensions),
                    "d1": _matrix(value.d1), "d2": _matrix(value.d2)}
+    elif kind == "lift":
+        payload = lift_payload(value)
+    elif kind == "parameters":
+        payload = parameter_payload(value, limits=limits)
     elif kind == "distance":
+        validate_json_data(value, limits=limits)
         payload = _distance(value)
     else:
+        validate_json_data(value, limits=limits)
         payload = _witness(value)
+    validate_json_data(payload, limits=limits)
     # JSON round-trip detaches caller-owned nested data and normalizes containers.
     payload = json.loads(_canonical(payload))
     encoded = _canonical({"schema": ARTIFACT_SCHEMA, "kind": kind, "payload": payload})
@@ -142,4 +155,4 @@ def describe(kind, value):
             "payload": payload}
 
 
-__all__ = ["ARTIFACT_SCHEMA", "CHAIN_SCHEMA", "DISTANCE_SCHEMA", "KINDS", "describe"]
+__all__ = ["ARTIFACT_SCHEMA", "CHAIN_SCHEMA", "DISTANCE_SCHEMA", "PARAMETERS_SCHEMA", "KINDS", "describe"]

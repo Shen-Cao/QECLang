@@ -12,9 +12,13 @@ from types import MappingProxyType
 
 from .json_input import (JSONLimits, canonical_json as _canonical, load_json,
                          loads_json, validate_json_data)
+from .lift_types import construction_limits, validate_lift_literal, validate_parameter_request
 
 SCHEMA = "qeclang.program.v1"
 _SIGNATURES = MappingProxyType({
+    "lift.literal": ((), "lift"),
+    "lift.parameters": (("lift",), "parameters"),
+    "lift.css": (("lift",), "css"),
     "css.literal": ((), "css"),
     "css.chain": (("css",), "chain"),
     "chain.css": (("chain",), "css"),
@@ -41,7 +45,10 @@ class ProgramLimits:
     max_bytes bounds both supplied UTF-8 and canonical JSON; max_payload_items
     counts containers, scalars and object keys. max_depth is dependency depth;
     max_payload_depth bounds JSON container nesting. max_edges counts all input
-    references; max_fanout counts reference uses of each prior node.
+    references; max_fanout counts input-reference uses of each prior node.
+    Seed entry/term bounds are shared by both seeds within each lifted literal.
+    max_symbolic_sites bounds its computed expanded axes without allocating them;
+    it is separate from CSS-literal max_qubits and executor packed-axis limits.
     """
     max_bytes: int = 10_000_000
     max_nodes: int = 1_000
@@ -57,6 +64,13 @@ class ProgramLimits:
     max_fanout: int = 1_000
     max_qubits: int = 100_000
     max_checks: int = 100_000
+    max_seed_axis: int = 10_000
+    max_seed_entries: int = 100_000
+    max_seed_terms: int = 1_000_000
+    max_group_factors: int = 16
+    max_cyclic_order: int = 1_000_000
+    max_group_size: int = 1_000_000
+    max_symbolic_sites: int = 1_000_000_000
 
     def __post_init__(self):
         for item in fields(self):
@@ -169,7 +183,13 @@ def _node(data, prior, limits):
         raise ValueError("program dependency depth exceeds max_depth")
     code_id = sector = None
     n = prior[inputs[0]].n if inputs else 0
-    if op == "css.literal":
+    if op == "lift.literal":
+        _keys(params, ("construction",))
+        n = validate_lift_literal(params["construction"], limits=construction_limits(limits)).n
+    elif op == "lift.parameters":
+        validate_parameter_request(params)
+        code_id = inputs[0]
+    elif op == "css.literal":
         _keys(params, ("code",))
         n = _literal(params["code"], limits)
     elif op in ("css.permute", "css.transport"):
@@ -206,6 +226,7 @@ def _node(data, prior, limits):
 class Program:
     """A topologically ordered, closed-operation DAG with nominal evidence types.
 
+    Parameter results bind to their originating lift node ID through code_id.
     Distance/witness values bind to their originating CSS node ID. Even an
     identity conversion creates a different nominal CSS value; reuse requires
     explicit witness transport. Parsing does not prove literal commutation or
