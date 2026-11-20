@@ -1,8 +1,8 @@
 """Bounded artifact decoding, with mathematical admission but no claim certification.
 
-CSS/chain/sparse constructors recheck commutation. Distance and witness records
-receive structural validation only: their source bindings, logical operators,
-lower bounds, and exactness claims need a separate scientific checker.
+CSS/chain/sparse constructors recheck commutation. Distance, witness, low-weight
+evidence and combined claims receive structural validation only: source bindings,
+logical operators, exclusions and exactness need a separate scientific checker.
 """
 from dataclasses import dataclass, field, fields
 from hashlib import sha256
@@ -15,6 +15,8 @@ from .artifacts import ARTIFACT_SCHEMA, CHAIN_SCHEMA, DISTANCE_SCHEMA, KINDS, de
 from .json_input import JSONLimitExceeded, JSONLimits, canonical_json, measure_json_data
 from .lift_artifacts import (LiftArtifactLimitExceeded, import_lift_payload,
                              import_parameter_payload)
+from .low_weight_payload import (LowWeightPayloadLimitExceeded, import_distance_claim_payload,
+                                 import_exclusion_payload)
 
 
 class ArtifactImportError(ValueError):
@@ -50,6 +52,7 @@ class ImportLimits:
     max_lift_group_size: int = 100_000
     max_lift_factors: int = 16
     max_parameter_entries: int = 100_000
+    max_low_weight_indices: int = 1_000_000
 
     def __post_init__(self):
         for item in fields(self):
@@ -239,6 +242,10 @@ def import_artifact(record, expected_kind, *, limits=ImportLimits(), budget=None
             value = import_lift_payload(record["payload"], limits=limits)
         elif expected_kind == "parameters":
             value = import_parameter_payload(record["payload"], limits=limits)
+        elif expected_kind == "exclusion":
+            value = import_exclusion_payload(record["payload"], limits=limits)
+        elif expected_kind == "distance_claim":
+            value = import_distance_claim_payload(record["payload"], limits=limits)
         else:
             value = _claim_value(record["payload"], expected_kind, limits)
         json_limits = JSONLimits(**{item.name: getattr(limits, item.name) for item in fields(JSONLimits)})
@@ -246,7 +253,7 @@ def import_artifact(record, expected_kind, *, limits=ImportLimits(), budget=None
             raise ArtifactImportError("artifact payload is not canonical")
     except ImportLimitExceeded:
         raise
-    except (JSONLimitExceeded, LiftArtifactLimitExceeded) as error:
+    except (JSONLimitExceeded, LiftArtifactLimitExceeded, LowWeightPayloadLimitExceeded) as error:
         raise ImportLimitExceeded(str(error)) from error
     except (ValueError, TypeError, KeyError, AttributeError) as error:
         raise ArtifactImportError(str(error)) from error

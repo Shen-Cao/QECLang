@@ -7,33 +7,13 @@ Mathematical admission checks remain the executor/core's responsibility.
 from dataclasses import dataclass, fields
 from hashlib import sha256
 import json
-import re
-from types import MappingProxyType
 
 from .json_input import (JSONLimits, canonical_json as _canonical, load_json,
                          loads_json, validate_json_data)
-from .lift_types import construction_limits, validate_lift_literal, validate_parameter_request
+from .signatures import (derive_node_type, identifier as _identifier, operation_signature,
+                          require_fields as _keys)
 
 SCHEMA = "qeclang.program.v1"
-_SIGNATURES = MappingProxyType({
-    "lift.literal": ((), "lift"),
-    "lift.parameters": (("lift",), "parameters"),
-    "lift.css": (("lift",), "css"),
-    "css.literal": ((), "css"),
-    "css.chain": (("css",), "chain"),
-    "chain.css": (("chain",), "css"),
-    "css.sparse": (("css",), "sparse_css"),
-    "sparse.css": (("sparse_css",), "css"),
-    "css.permute": (("css",), "css"),
-    "css.distance": (("css",), "distance"),
-    "css.witness": (("css", "distance"), "witness"),
-    "css.transport": (("css", "css", "witness"), "witness"),
-    "css.import_witness": (("css",), "witness"),
-    "css.rebase_witness": (("css", "css", "witness"), "witness"),
-})
-_ID = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\Z")
-_DIGEST = re.compile(r"[0-9a-f]{64}\Z")
-_WORD = re.compile(r"0x(?:0|[1-9a-f][0-9a-f]*)\Z")
 
 
 def _integer(value, name, *, maximum=None):
@@ -97,88 +77,6 @@ def _admission(limits):
     return JSONLimits(**{item.name: getattr(limits, item.name) for item in fields(JSONLimits)})
 
 
-def _keys(value, required, optional=()):
-    if type(value) is not dict or not set(required) <= value.keys() or value.keys() - set(required) - set(optional):
-        raise ValueError(f"expected fields {tuple(required)} with optional {tuple(optional)}")
-
-
-def _identifier(value, limits):
-    if type(value) is not str or len(value) > limits.max_id_length or _ID.fullmatch(value) is None:
-        raise ValueError("node references require bounded ASCII identifiers")
-    return value
-
-
-def _literal(data, limits):
-    _keys(data, ("schema", "kind", "n", "hx", "hz"), ("name",))
-    if data["schema"] != "qeclang.code.v1" or data["kind"] != "css":
-        raise ValueError("css.literal requires a qeclang.code.v1 CSS record")
-    n = _integer(data["n"], "literal n", maximum=limits.max_qubits)
-    if "name" in data and type(data["name"]) is not str:
-        raise ValueError("literal name must be a string")
-    checks = 0
-    for key in ("hx", "hz"):
-        rows = data[key]
-        if type(rows) is not list:
-            raise ValueError("literal checks must be lists of supports")
-        checks += len(rows)
-        if checks > limits.max_checks:
-            raise ValueError("literal check count exceeds max_checks")
-        for support in rows:
-            if type(support) is not list or len(support) > n:
-                raise ValueError("literal support must be a list of distinct sites")
-            seen = set()
-            for site in support:
-                _integer(site, "literal site")
-                if site >= n or site in seen:
-                    raise ValueError("literal support contains an out-of-range or repeated site")
-                seen.add(site)
-    return n
-
-
-def _permutation(value, n):
-    if type(value) is not list or len(value) != n:
-        raise ValueError("permutation must contain every physical site")
-    seen = set()
-    for site in value:
-        _integer(site, "permutation site")
-        if site >= n or site in seen:
-            raise ValueError("permutation must be a bijection")
-        seen.add(site)
-
-
-def _imported_witness(params, n, limits):
-    """Check certificate/origin syntax without source hashing or Pauli parity."""
-    _keys(params, ("certificate",), ("origin",))
-    record = params["certificate"]
-    _keys(record, ("schema", "source", "kind", "claim", "certificate"))
-    if record["schema"] != "qeclang.certificate.v1" or record["kind"] != "css_logical":
-        raise ValueError("imported witness must be a qeclang.certificate.v1 CSS logical record")
-    if type(record["source"]) is not str or _DIGEST.fullmatch(record["source"]) is None:
-        raise ValueError("certificate source must be a lowercase SHA-256 digest")
-    certificate, claim = record["certificate"], record["claim"]
-    _keys(certificate, ("sector", "operator", "dual", "weight"))
-    _keys(claim, ("distance_upper_bound", "sector"))
-    sector = certificate["sector"]
-    if sector not in ("x", "z") or claim["sector"] != sector:
-        raise ValueError("certificate and claim must have the same CSS sector")
-    weight = _integer(certificate["weight"], "certificate weight", maximum=n)
-    upper = _integer(claim["distance_upper_bound"], "distance_upper_bound", maximum=n)
-    if weight == 0 or upper != weight:
-        raise ValueError("certificate and claim must have the same positive weight")
-    for key in ("operator", "dual"):
-        value = certificate[key]
-        if (type(value) is not str or len(value) > max(1, (n+3)//4) + 2
-                or _WORD.fullmatch(value) is None or int(value, 16).bit_length() > n):
-            raise ValueError("certificate words must be canonical hexadecimal within physical width")
-    if "origin" in params:
-        origin = params["origin"]
-        _keys(origin, ("bundle_id", "node"))
-        if type(origin["bundle_id"]) is not str or _DIGEST.fullmatch(origin["bundle_id"]) is None:
-            raise ValueError("origin bundle_id must be a lowercase SHA-256 digest")
-        _identifier(origin["node"], limits)
-    return sector
-
-
 @dataclass(frozen=True, init=False)
 class ProgramNode:
     id: str
@@ -210,71 +108,21 @@ def _node(data, prior, limits):
     if name in prior:
         raise ValueError(f"duplicate node id: {name}")
     op, refs, params = data["op"], data["inputs"], data["params"]
-    if type(op) is not str or op not in _SIGNATURES:
-        raise ValueError("unsupported workflow operation")
+    expected, _ = operation_signature(op)
     if type(refs) is not list or len(refs) > limits.max_inputs:
         raise ValueError("node inputs exceed max_inputs or are not a list")
     inputs = tuple(_identifier(ref, limits) for ref in refs)
     if any(ref not in prior for ref in inputs):
         raise ValueError("node inputs must reference prior nodes; forward references and cycles are forbidden")
-    expected, result_type = _SIGNATURES[op]
     if tuple(prior[ref].result_type for ref in inputs) != expected:
         raise ValueError(f"input types do not match {op}: expected {expected}")
     depth = 1 + max((prior[ref].depth for ref in inputs), default=0)
     if depth > limits.max_depth:
         raise ValueError("program dependency depth exceeds max_depth")
-    code_id = sector = None
-    n = prior[inputs[0]].n if inputs else 0
-    mx = prior[inputs[0]].mx if inputs else 0
-    mz = prior[inputs[0]].mz if inputs else 0
-    if op == "lift.literal":
-        _keys(params, ("construction",))
-        shape = validate_lift_literal(params["construction"], limits=construction_limits(limits))
-        n, mx, mz = shape.n, shape.x_checks, shape.z_checks
-    elif op == "lift.parameters":
-        validate_parameter_request(params)
-        code_id = inputs[0]
-    elif op == "css.literal":
-        _keys(params, ("code",))
-        n = _literal(params["code"], limits)
-        mx, mz = len(params["code"]["hx"]), len(params["code"]["hz"])
-    elif op in ("css.permute", "css.transport"):
-        _keys(params, ("permutation",))
-        _permutation(params["permutation"], n)
-        if op == "css.transport":
-            if prior[inputs[1]].n != n or prior[inputs[2]].code_id != inputs[0]:
-                raise ValueError("transport requires equal dimensions and a witness bound to its source CSS node")
-            code_id, sector = inputs[1], prior[inputs[2]].sector
-            mx, mz = prior[inputs[1]].mx, prior[inputs[1]].mz
-    elif op == "css.import_witness":
-        sector = _imported_witness(params, n, limits)
-        code_id = inputs[0]
-    elif op == "css.rebase_witness":
-        from .row_equivalence import validate_map_supports
-        target, witness = prior[inputs[1]], prior[inputs[2]]
-        if target.n != n or witness.code_id != inputs[0]:
-            raise ValueError("rebasing requires equal physical widths and a source-bound witness")
-        validate_map_supports(params, (mx, mz), (target.mx, target.mz),
-                              max_rows=limits.max_payload_items, max_indices=limits.max_map_entries)
-        code_id, sector, mx, mz = inputs[1], witness.sector, target.mx, target.mz
-    elif op == "css.distance":
-        _keys(params, ("sector", "max_weight", "max_candidates"))
-        if params["sector"] not in ("x", "z"):
-            raise ValueError("distance sector must be x or z")
-        _integer(params["max_weight"], "max_weight")
-        _integer(params["max_candidates"], "max_candidates")
-        code_id, sector = inputs[0], params["sector"]
-    elif op == "css.witness":
-        _keys(params, ())
-        if prior[inputs[1]].code_id != inputs[0]:
-            raise ValueError("distance evidence is bound to a different CSS node")
-        code_id, sector = inputs[0], prior[inputs[1]].sector
-    else:
-        _keys(params, ())
+    derived = derive_node_type(op, tuple(prior[ref] for ref in inputs), params, limits)
     node = object.__new__(ProgramNode)
-    values = {"id": name, "op": op, "inputs": inputs, "result_type": result_type,
-              "n": n, "mx": mx, "mz": mz, "depth": depth, "code_id": code_id, "sector": sector,
-              "_params_json": _canonical(params)}
+    values = {"id": name, "op": op, "inputs": inputs, "depth": depth,
+              **vars(derived), "_params_json": _canonical(params)}
     for key, value in values.items():
         object.__setattr__(node, key, value)
     return node

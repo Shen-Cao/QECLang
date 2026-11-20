@@ -16,11 +16,14 @@ from qeclang.codes import CSSCode, ChainComplex, SparseCSSCode
 from qeclang.io import SCHEMA as CODE_SCHEMA, to_dict
 from .json_input import JSONLimits, validate_json_data
 from .lift_artifacts import PARAMETERS_SCHEMA, lift_payload, parameter_payload
+from .low_weight_payload import (DISTANCE_CLAIM_SCHEMA, EXCLUSION_SCHEMA,
+                                 distance_claim_payload, exclusion_payload)
 
 ARTIFACT_SCHEMA = "qeclang.workflow.artifact.v1"
 CHAIN_SCHEMA = "qeclang.workflow.chain.v1"
 DISTANCE_SCHEMA = "qeclang.workflow.distance.v1"
-KINDS = frozenset(("css", "chain", "sparse_css", "distance", "witness", "lift", "parameters"))
+KINDS = frozenset(("css", "chain", "sparse_css", "distance", "witness", "lift", "parameters",
+                   "exclusion", "distance_claim"))
 _SERIALIZATION_LIMITS = JSONLimits(max_integer_bits=4096)
 _DISTANCE_FIELDS = frozenset(("source", "sector", "lower_bound", "upper_bound", "witness",
                               "searched_through", "candidates", "status"))
@@ -141,6 +144,10 @@ def describe(kind, value, *, limits=_SERIALIZATION_LIMITS):
         payload = lift_payload(value)
     elif kind == "parameters":
         payload = parameter_payload(value, limits=limits)
+    elif kind == "exclusion":
+        payload = exclusion_payload(value, limits=limits)
+    elif kind == "distance_claim":
+        payload = distance_claim_payload(value, limits=limits)
     elif kind == "distance":
         validate_json_data(value, limits=limits)
         payload = _distance(value)
@@ -155,4 +162,5 @@ def describe(kind, value, *, limits=_SERIALIZATION_LIMITS):
             "payload": payload}
 
 
-__all__ = ["ARTIFACT_SCHEMA", "CHAIN_SCHEMA", "DISTANCE_SCHEMA", "PARAMETERS_SCHEMA", "KINDS", "describe"]
+__all__ = ["ARTIFACT_SCHEMA", "CHAIN_SCHEMA", "DISTANCE_SCHEMA", "PARAMETERS_SCHEMA", "EXCLUSION_SCHEMA",
+           "DISTANCE_CLAIM_SCHEMA", "KINDS", "describe"]
