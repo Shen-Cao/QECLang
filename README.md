@@ -93,6 +93,9 @@ The [Steane distance program](examples/programs/exact_steane.json) also produces
 independent lower-bound evidence. Its [column checks](docs/low_weight.md) exclude
 nontrivial X and Z operators of weights one and two. Joining these exclusions
 with the two weight-three upper witnesses certifies full CSS distance three.
+An [archived distance proof](docs/distance_reuse.md) can be reconstructed and
+transported to an explicitly equivalent measurement presentation. The target
+claim identifies its source interval and the physical relation used.
 
 | Layer | Available functionality |
 |---|---|

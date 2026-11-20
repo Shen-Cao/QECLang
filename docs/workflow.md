@@ -33,6 +33,8 @@ A program has exactly `schema`, `nodes`, and `outputs`. Each node has `id`, `op`
 | `css.exclude` | `css` → `exclusion` | `sector`, `through` (1 or 2), `max_steps`: exclude low-weight logicals or supply a counterexample |
 | `css.combine_distance` | `css`, `exclusion`, `witness` → `distance_claim` | Empty parameters; combine independently verified, source-matched lower and upper premises |
 | `css.full_distance` | `css`, X and Z `distance_claim` → `distance_claim` | Empty parameters; combine checked finite sector intervals using the CSS distance identity |
+| `css.import_exclusion` | `css` → `exclusion` | `record`, optional `origin`; verify a supplied complete exclusion against the source |
+| `css.transport_distance` | source `css`, target `css`, `distance_claim` → `distance_claim` | `relation` selects a supplied permutation or generator-space map preserving the physical metric |
 
 Distance and witness nodes have nominal source bindings. Even identical CSS data reached through a different node is a different nominal source; reuse across nodes needs explicit transport, including an identity permutation when appropriate. Runtime checks also bind evidence to the exact mathematical presentation. Thus deduplicating equal artifacts does not erase the program's source bindings.
 
@@ -246,3 +248,29 @@ premises. The inspector can certify physical distance three from the combined
 results. It does not thereby validate search history or arbitrary higher
 weights. See [low-weight certificates](low_weight.md) for the assumptions,
 degenerate cases and resource budgets.
+
+## Transporting a checked finite distance interval
+
+`css.import_exclusion` takes a positive CSS presentation and a complete
+low-weight exclusion record. Its optional `origin` names a bundle and node.
+Import verifies the actual memberships against that source even if the program
+requests no optional relation checks. Verification has its own work allowance,
+so a program can admit an existing proof with zero producer steps and zero
+basis-construction allowance.
+
+`css.transport_distance` takes source and target CSS presentations and a checked
+source `distance_claim`. It accepts an explicit qubit permutation or two-way
+X/Z generator maps. Both are physical Hamming isometries in their declared
+coordinates and preserve the relevant logical quotient. Consequently an
+established interval retains the same endpoints on the target. A reader also
+checks the source interval's premises; a pair of integers presented as an
+input assertion cannot establish a distance. X, Z, and full Pauli scopes are
+distinct. Neither a general quasi-isomorphism nor a decoder comparison supplies
+this transport theorem.
+
+The [distance reuse workflow](distance_reuse.md) rebuilds source premises from
+an archived sector or full-distance join. It allows a second process to verify
+the transformed result without rerunning either distance enumeration or the
+producer's low-weight proof construction. Origin metadata identifies where to
+look for the evidence. Scientific inspection validates the supplied evidence
+under the reader's own policy.

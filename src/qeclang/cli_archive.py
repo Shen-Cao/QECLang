@@ -10,7 +10,8 @@ def register(commands):
     put = verbs.add_parser('put', help='inspect and atomically publish one program/run pair')
     get = verbs.add_parser('get', help='fetch a bundle by digest and check it independently')
     reuse = verbs.add_parser('reuse', help='create a program that rebinds a saved CSS upper witness')
-    for parser in (put, get, reuse):
+    distance = verbs.add_parser('reuse-distance', help='reconstruct and transport a checked distance interval')
+    for parser in (put, get, reuse, distance):
         parser.add_argument('database', type=Path)
         parser.add_argument('--allow-prefix', action='store_true')
         parser.add_argument('--max-bundle-bytes', type=int, default=32_000_000)
@@ -27,6 +28,10 @@ def register(commands):
     reuse.add_argument('witness_node')
     reuse.add_argument('target', type=Path, help='target positive CSS code record')
     reuse.add_argument('maps', type=Path, help='explicit forward and reverse generator maps')
+    distance.add_argument('key')
+    distance.add_argument('distance_node')
+    distance.add_argument('target', type=Path)
+    distance.add_argument('relation', type=Path, help='declared qubit permutation or bidirectional generator relation')
 
 
 def run(args):
@@ -47,8 +52,7 @@ def run(args):
             result = publish(Program.load(args.program, limits=limits.program),
                              load_json(args.record, limits=limits.json), store,
                              limits=limits, allow_prefix=args.allow_prefix)
-        elif args.archive_command == 'reuse':
-            from .archive.reuse import make_reuse_program
+        elif args.archive_command in ('reuse', 'reuse-distance'):
             from .io import from_dict
             raw = load_json(args.target, limits=limits.json)
             if not isinstance(raw, dict) or raw.get('kind') != 'css':
@@ -56,9 +60,15 @@ def run(args):
             target = from_dict(raw, max_qubits=limits.inspection.artifacts.max_axis,
                                max_checks=limits.inspection.artifacts.max_axis,
                                max_bits=limits.inspection.artifacts.max_matrix_bits)
-            maps = load_json(args.maps, limits=limits.json)
-            result = make_reuse_program(store, args.key, args.witness_node, target, maps,
-                                        allow_prefix=args.allow_prefix, limits=limits).to_dict()
+            if args.archive_command == 'reuse':
+                from .archive.reuse import make_reuse_program
+                program = make_reuse_program(store, args.key, args.witness_node, target,
+                        load_json(args.maps, limits=limits.json), allow_prefix=args.allow_prefix, limits=limits)
+            else:
+                from .archive.distance_reuse import make_distance_reuse_program
+                program = make_distance_reuse_program(store, args.key, args.distance_node, target,
+                        load_json(args.relation, limits=limits.json), allow_prefix=args.allow_prefix, limits=limits)
+            result = program.to_dict()
         else:
             result = retrieve(store, args.key, expected_program=args.expected_program,
                               limits=limits, allow_prefix=args.allow_prefix)

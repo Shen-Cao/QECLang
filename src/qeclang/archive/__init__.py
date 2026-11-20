@@ -2,8 +2,9 @@
 from .bundles import ArchiveLimits, ArchiveRefused, publish, retrieve
 from .protocol import EvidenceReader, EvidenceWriter, InMemoryEvidenceStore, bundle_id
 from .reuse import make_reuse_program
+from .distance_reuse import make_distance_reuse_program
 from .sqlite_store import SQLiteEvidenceStore
 
 __all__ = ['ArchiveLimits', 'ArchiveRefused', 'EvidenceReader', 'EvidenceWriter',
            'InMemoryEvidenceStore', 'SQLiteEvidenceStore', 'bundle_id', 'publish', 'retrieve',
-           'make_reuse_program']
+           'make_reuse_program', 'make_distance_reuse_program']
