@@ -64,6 +64,7 @@ the recorded artifacts, checks, and budget usage under the same runtime:
 mkdir -p results
 qeclang run examples/programs/transport.json > results/transport-run.json
 qeclang run examples/programs/transport.json --replay results/transport-run.json
+qeclang run examples/programs/transport.json --inspect results/transport-run.json
 ```
 
 See [workflow programs](docs/workflow.md) for the supported operations, the

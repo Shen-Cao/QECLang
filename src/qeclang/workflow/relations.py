@@ -21,6 +21,7 @@ class RelationError(ValueError):
 
 _COMMON = ("physical_qubit_count", "check_order", "check_labels", "check_weights",
            "syndrome_action", "logical_quotient", "hamming_metric")
+BASED_RELATIONS = frozenset(("css.chain", "chain.css", "css.permute", "css.sparse", "sparse.css"))
 
 
 def _matrix(matrix, sparse=False):
@@ -108,8 +109,7 @@ def check_relation(op, source, target, params) -> tuple[str, ...]:
     dimensions, and X/Z labels are significant; display names are ignored.
     General chain maps/basis changes are deliberately not accepted here.
     """
-    operations = ("css.chain", "chain.css", "css.sparse", "sparse.css", "css.permute")
-    if not isinstance(op, str) or op not in operations:
+    if not isinstance(op, str) or op not in BASED_RELATIONS:
         raise RelationError("unsupported relational operation")
     expected_keys = {"permutation"} if op == "css.permute" else set()
     if not isinstance(params, dict) or set(params) != expected_keys:
@@ -166,4 +166,24 @@ def transport_witness(source: CSSCode, target: CSSCode, permutation,
     return result
 
 
-__all__ = ["RelationError", "check_relation", "transport_witness"]
+def check_witness_transport(source, target, permutation, original, transported):
+    """Check both supplied certificates and their bitwise coordinate relation.
+
+    This verifier neither constructs a mapped word nor invokes transport_witness.
+    Valid but differently chosen target representatives do not satisfy the edge.
+    """
+    check_relation("css.permute", source, target, {"permutation": permutation})
+    for code, cert in ((source, original), (target, transported)):
+        if (not isinstance(cert, dict) or cert.get("kind") != "css_logical"
+                or not verify_certificate_record(code, cert, max_axis=code.n, max_bits=2*code.n)):
+            raise RelationError("invalid certificate on witness transport edge")
+    if original["claim"] != transported["claim"]:
+        raise RelationError("witness transport changed weight or sector")
+    for name in ("operator", "dual"):
+        old = int(original["certificate"][name], 16)
+        new = int(transported["certificate"][name], 16)
+        if any(((old >> i) & 1) != ((new >> j) & 1) for i, j in enumerate(permutation)):
+            raise RelationError(f"transported {name} differs under the supplied permutation")
+
+
+__all__ = ["RelationError", "check_relation", "transport_witness", "check_witness_transport"]

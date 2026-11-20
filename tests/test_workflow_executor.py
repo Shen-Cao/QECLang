@@ -88,6 +88,12 @@ def test_cli_and_failed_replay(tmp_path, capsys):
     record = json.loads(capsys.readouterr().out)
     path = tmp_path / 'record.json'
     path.write_text(json.dumps(record))
+    assert main(['run', str(EXAMPLE), '--inspect', str(path)]) == 0
+    inspection = json.loads(capsys.readouterr().out)
+    assert inspection['status'] == 'checked'
+    assert [claim['bound'] for claim in inspection['claims']] == [3, 3]
+    assert main(['run', str(EXAMPLE), '--inspect', str(path), '--max-record-bytes', '1']) == 2
+    assert json.loads(capsys.readouterr().out)['status'] == 'budget_exhausted'
     assert main(['run', str(EXAMPLE), '--replay', str(path)]) == 0
     assert json.loads(capsys.readouterr().out)['matches']
     record['ledger'] = None

@@ -7,14 +7,11 @@ from .artifacts import describe
 from .budget import BudgetExceeded, ExecutionLimits, Ledger
 from .operations import UnavailableEvidence, evaluate
 from .program import Program
-from .relations import RelationError, check_relation
-
-
-_RELATIONS = frozenset(("css.chain", "chain.css", "css.sparse", "sparse.css", "css.permute"))
+from .relations import BASED_RELATIONS, RelationError, check_relation
 
 
 def _evidence(op, args, params, value, ledger, verify):
-    if op in _RELATIONS:
+    if op in BASED_RELATIONS:
         if not verify:
             return {"assurance": "not_requested"}
         if not ledger.remaining("optional_checks"):

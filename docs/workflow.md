@@ -96,3 +96,40 @@ Replay reruns the program under caller-supplied execution limits and the caller'
 Supply the original policy explicitly when it differs from defaults, for example matching `--max-candidates 28` or `--no-relation-checks` on both CLI calls. `--max-record-bytes` bounds replay-record file input. Duplicate fields and invalid numeric/JSON data are rejected. Source hashing uses package-relative filenames and file contents, without machine-specific paths.
 
 A replay match establishes strict reproducibility of this run under the recorded implementation. It does not establish that the implementation is mathematically correct, remove a producer's trust assumptions, upgrade an interval into an exact distance, or certify unimplemented workflows. The standalone Lean witness checker is a separate facility; this interpreter does not invoke it implicitly.
+
+## Independent inspection of saved evidence
+
+```sh
+qeclang run examples/programs/transport.json --inspect output/transport-run.json
+```
+
+`--replay` runs the producer again and compares the complete record. `--inspect`
+reads a completed record and checks the predicates it can establish independently.
+It checks the literal against the caller's program, validates canonical artifact
+payloads and digests, follows each input and output binding, and checks each
+conversion's physical-coordinate relationship. For a logical witness it checks
+syndrome, dual pairing, weight, sector and source presentation. For a transported
+witness it also checks the image of both operator and dual under the specified
+site permutation. No distance enumeration, rank elimination, solver or Lean
+process is required. The verifier's trusted base includes the Python arithmetic
+and admission routines and the supplied program.
+
+An inspection of the Steane example returns two claims of X distance at most
+three, one for each presentation. The producer's exact-distance report and the
+completeness of the searched weight layers remain outside that verdict. Inspecting
+a run from another runtime can verify those same mathematical predicates. This
+says nothing about the origin of the file or how much work the producer performed.
+The result lists the reported distance nodes separately from independently checked
+claims. A distance-only or empty program can therefore yield no verified numerical
+claims. The source and evidence digests in each claim allow a reader to select
+precisely the object to which the result applies.
+
+Inspection uses the reader's JSON, artifact, matrix-size, incidence-work, relation,
+and certificate-count limits. Each unique artifact is imported once. A malformed
+binding, a falsified certificate, or a refused check yields no scientific claims
+from the run. Incomplete execution records are currently unsupported by this
+checker. Strict replay remains available for recorded refusals. The CLI flag
+`--no-relation-checks` controls producer execution/replay only; inspection always
+checks the relevant relationships. A successful inspection gives no assurance
+about producer-reported budgets, historical checks, or code equivalence beyond
+the explicit relations in that program.
