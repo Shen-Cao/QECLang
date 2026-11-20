@@ -9,6 +9,9 @@ class ExecutionLimits:
     max_transports: int = 256
     max_witness_imports: int = 256
     max_row_map_work: int = 1_000_000
+    max_exclusion_steps: int = 1_000_000
+    max_exclusion_verify_steps: int = 1_000_000
+    max_exclusion_indices: int = 100_000
     max_artifact_bytes: int = 8_000_000
     max_validation_work: int = 1_000_000
     max_axis: int = 1024
@@ -49,7 +52,8 @@ class Ledger:
     def __init__(self, limits):
         self.limits = limits
         self.used = {k: 0 for k in ("candidates", "optional_checks", "transports", "witness_imports", "row_map_work",
-                                    "artifact_bytes", "validation_work", "rank_steps", "lift_comparison_units")}
+                                    "artifact_bytes", "validation_work", "rank_steps", "lift_comparison_units",
+                                    "exclusion_steps", "exclusion_verify_steps")}
         self.peak_requested = {k: 0 for k in ("axis", "matrix_bits", "basis_bits", "blocks", "symbolic_terms")}
 
     def remaining(self, resource):

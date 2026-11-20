@@ -16,6 +16,8 @@ def register(commands):
         parser.add_argument('--max-bundle-bytes', type=int, default=32_000_000)
         parser.add_argument('--max-reader-steps', type=int, default=1_000_000,
                             help='maximum arithmetic units for verification of symbolic rank proofs')
+        parser.add_argument('--max-reader-exclusion-steps', type=int, default=1_000_000,
+                            help='maximum reader work units for low-weight exclusion evidence')
     put.add_argument('program', type=Path)
     put.add_argument('record', type=Path)
     get.add_argument('key')
@@ -37,7 +39,8 @@ def run(args):
     try:
         defaults = ArchiveLimits()
         limits = replace(defaults, json=replace(defaults.json, max_bytes=args.max_bundle_bytes),
-                         inspection=replace(defaults.inspection, max_rank_steps=args.max_reader_steps))
+                         inspection=replace(defaults.inspection, max_rank_steps=args.max_reader_steps,
+                                            max_exclusion_verify_steps=args.max_reader_exclusion_steps))
         store = SQLiteEvidenceStore(args.database, readonly=args.archive_command != 'put',
                                     max_bundle_bytes=limits.json.max_bytes)
         if args.archive_command == 'put':

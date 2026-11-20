@@ -30,6 +30,9 @@ A program has exactly `schema`, `nodes`, and `outputs`. Each node has `id`, `op`
 | `css.transport` | source `css`, target `css`, `witness` → `witness` | `permutation`: verify the relationship and relabel both operator and dual |
 | `css.import_witness` | `css` → `witness` | `certificate` and optional `origin`: verify a supplied certificate on this presentation |
 | `css.rebase_witness` | source `css`, target `css`, `witness` → `witness` | `x_forward`, `x_reverse`, `z_forward`, `z_reverse`: check two-way generator inclusions and rebind the unchanged words |
+| `css.exclude` | `css` → `exclusion` | `sector`, `through` (1 or 2), `max_steps`: exclude low-weight logicals or supply a counterexample |
+| `css.combine_distance` | `css`, `exclusion`, `witness` → `distance_claim` | Empty parameters; combine independently verified, source-matched lower and upper premises |
+| `css.full_distance` | `css`, X and Z `distance_claim` → `distance_claim` | Empty parameters; combine checked finite sector intervals using the CSS distance identity |
 
 Distance and witness nodes have nominal source bindings. Even identical CSS data reached through a different node is a different nominal source; reuse across nodes needs explicit transport, including an identity permutation when appropriate. Runtime checks also bind evidence to the exact mathematical presentation. Thus deduplicating equal artifacts does not erase the program's source bindings.
 
@@ -222,3 +225,24 @@ Import, row-map verification, and rebinding are mandatory under either optional
 relation-check policy. The checker accounts for supplied map incidences under
 `max_row_map_work`. Deriving coefficient maps with a linear solve is an explicit
 host operation and lies outside the interpreter. See [archive reuse](reuse.md).
+
+## Deriving exact distance claims from explicit premises
+
+A raw search report remains a producer assertion to the reader. `css.exclude`
+provides a different route for weights one and two by checking the syndrome
+columns and explicit stabilizer memberships. A successful exclusion says that
+all centralizing words through the requested weight are trivial. A verified
+upper witness in the same sector and presentation establishes existence.
+`css.combine_distance` intersects those two pieces of evidence. If the bounds
+meet, the reader can independently issue an exact `sector_distance` claim.
+`css.full_distance` takes the minimum of the two sector lower bounds and of the
+two sector upper bounds, after both premises were checked on the same code.
+Those endpoints can meet even if only one sector's distance is known exactly.
+
+The [Steane example](../examples/programs/exact_steane.json) makes both
+sector requests with zero enumeration allowance. Its raw distance outputs
+provide upper witnesses. The separate exclusions provide the missing lower
+premises. The inspector can certify physical distance three from the combined
+results. It does not thereby validate search history or arbitrary higher
+weights. See [low-weight certificates](low_weight.md) for the assumptions,
+degenerate cases and resource budgets.

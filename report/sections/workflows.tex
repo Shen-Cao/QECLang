@@ -30,6 +30,48 @@ On the small Steane case, recording and checking take milliseconds while direct
 calls take a fraction of a millisecond. Those runs measure the cost of evidence
 handling on small inputs.
 
+\subsection{Finite lower bounds from syndrome-column classes}
+For one CSS sector write $S$ for its stabilizer checks and $H$ for the opposite
+checks. Let $c_i=He_i$ denote a syndrome column. A unit vector has zero syndrome
+exactly when $c_i=0$; a two-site vector $e_i+e_j$ has zero syndrome exactly when
+$c_i=c_j$. To exclude nontrivial logicals through weight two, certify
+$e_i\in\row S$ at every zero column. For each nonzero equal-column class,
+choose its least site $r$ and certify $e_r+e_i\in\row S$ at all other sites.
+These at most $n$ membership obligations suffice: a pair in the zero class is
+a sum of certified units, and any other zero-syndrome pair obeys
+\[
+e_i+e_j=(e_r+e_i)+(e_r+e_j).
+\]
+Every required vector is itself a zero-syndrome vector of weight at most two,
+so the criterion is also necessary. Exclusion through weight one retains only
+the zero-column obligations. Redundant checks and degeneracy are allowed.
+
+The producer supplies each membership as an explicit sum of same-sector
+generators. A reader regenerates the complete obligations and verifies their
+XOR identities, without elimination or enumerating all pairs. Certificate
+index storage can still scale as $nm_S$, where $m_S$ is the number of
+same-sector checks. Input dimensions, coefficient indices, workspace proxies,
+and arithmetic work have separate bounds; hashing and Python object overhead
+are outside the arithmetic proxy.
+
+Exclusion through $t$ is a predicate about all weights up to $t$, not a claim
+that a logical exists. In particular it does not assign a finite distance to
+a $k=0$ code. A separate nontrivial logical witness of weight $w$ gives the
+finite interval $t+1\leq d_a\leq w$ for sector $a$. Equal endpoints establish
+an exact finite distance. Combining both sectors uses
+$d=\min(d_X,d_Z)$: a nontrivial mixed Pauli contains a nontrivial sector
+component and cannot weigh less than that component.
+
+The Steane program independently establishes $d_X=d_Z=d=3$. Both check
+matrices have distinct nonzero columns, so their exclusion lists are empty;
+separate weight-three witnesses supply finite upper bounds. Its execution
+enumerates zero distance candidates, and inspection requires neither search
+nor elimination. Random small CSS cases are checked against exhaustive
+one- and two-site support oracles, including empty and degenerate boundaries.
+This lower-bound checker uses exact Python arithmetic; it is not part of the
+Lean kernel-checked upper-witness theorem. The result verifies a known finite
+instance, not a new code or an asymptotic family theorem.
+
 \subsection{Checking a result after materialization is refused}
 A separate program specifies lifted-product seeds and requests symbolic check
 ranks. Polynomial reduction produces elementary-operation traces for both

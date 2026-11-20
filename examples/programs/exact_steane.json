@@ -1,0 +1,37 @@
+{
+  "schema": "qeclang.program.v1",
+  "nodes": [
+    {
+      "id": "code",
+      "op": "css.literal",
+      "inputs": [],
+      "params": {
+        "code": {
+          "schema": "qeclang.code.v1",
+          "kind": "css",
+          "n": 7,
+          "name": "Steane",
+          "hx": [[0, 2, 4, 6], [1, 2, 5, 6], [3, 4, 5, 6]],
+          "hz": [[0, 2, 4, 6], [1, 2, 5, 6], [3, 4, 5, 6]]
+        }
+      }
+    },
+    {"id": "x_exclusion", "op": "css.exclude", "inputs": ["code"],
+     "params": {"sector": "x", "through": 2, "max_steps": 10000}},
+    {"id": "x_report", "op": "css.distance", "inputs": ["code"],
+     "params": {"sector": "x", "max_weight": 0, "max_candidates": 0}},
+    {"id": "x_upper", "op": "css.witness", "inputs": ["code", "x_report"], "params": {}},
+    {"id": "x_distance", "op": "css.combine_distance",
+     "inputs": ["code", "x_exclusion", "x_upper"], "params": {}},
+    {"id": "z_exclusion", "op": "css.exclude", "inputs": ["code"],
+     "params": {"sector": "z", "through": 2, "max_steps": 10000}},
+    {"id": "z_report", "op": "css.distance", "inputs": ["code"],
+     "params": {"sector": "z", "max_weight": 0, "max_candidates": 0}},
+    {"id": "z_upper", "op": "css.witness", "inputs": ["code", "z_report"], "params": {}},
+    {"id": "z_distance", "op": "css.combine_distance",
+     "inputs": ["code", "z_exclusion", "z_upper"], "params": {}},
+    {"id": "distance", "op": "css.full_distance",
+     "inputs": ["code", "x_distance", "z_distance"], "params": {}}
+  ],
+  "outputs": ["x_distance", "z_distance", "distance"]
+}

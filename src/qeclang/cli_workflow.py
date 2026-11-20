@@ -46,10 +46,13 @@ def run(args: argparse.Namespace):
                 max_polynomial_operations=limits.max_polynomial_operations,
                 max_lift_comparison_units=limits.max_lift_comparison_units,
                 max_row_map_work=limits.max_row_map_work,
+                max_exclusion_verify_steps=limits.max_exclusion_verify_steps,
+                max_exclusion_indices=limits.max_exclusion_indices,
                 record=JSONLimits(max_bytes=args.max_record_bytes, max_integer_bits=4096,
                                   max_payload_items=8_000_000),
                 artifacts=ImportLimits(max_bytes=limits.max_artifact_bytes, max_axis=limits.max_axis,
-                    max_matrix_bits=limits.max_matrix_bits, max_validation_work=limits.max_validation_work))
+                    max_matrix_bits=limits.max_matrix_bits, max_validation_work=limits.max_validation_work,
+                    max_low_weight_indices=limits.max_exclusion_indices))
             result = inspect_run(program, _read_record(args.inspect, args.max_record_bytes), limits=inspection,
                                  allow_prefix=args.allow_prefix)
             ok = result['status'] in ('checked', 'checked_prefix')

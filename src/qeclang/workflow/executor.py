@@ -42,6 +42,13 @@ def _evidence(op, args, params, value, ledger, verify):
         return {'assurance': 'producer_computed' if value['status'] == 'exact' else 'unavailable',
                 'scope': 'instance', 'predicate': 'logical_dimension', 'analysis_status': value['status'],
                 'source': value['construction_fingerprint'], 'value': value['k'], 'method': value['method']}
+    if op == 'css.exclude':
+        return {'assurance': 'producer_computed', 'scope': 'instance', 'source': value['source'],
+                'sector': value['sector'], 'analysis_status': value['status'], 'claim': value['claim']}
+    if op in ('css.combine_distance', 'css.full_distance'):
+        predicate = 'sector_distance' if op == 'css.combine_distance' else 'logical_distance'
+        return {'assurance': 'independently_checked', 'scope': 'instance', 'predicate': predicate,
+                **{k: v for k, v in value.items() if k != 'schema'}}
     return {"assurance": "core_validated"}
 
 

@@ -2,15 +2,11 @@
 from dataclasses import dataclass, field
 import re
 
-from qeclang.analysis.certificate_io import presentation_fingerprint, verify_certificate_record
-from qeclang.algebra.binary import set_bits
 from .import_artifact import ImportBudget, ImportLimitExceeded, ImportLimits, import_artifact
 from .json_input import JSONLimitExceeded, JSONLimits, validate_json_data
 from .program import Program
-from .relations import BASED_RELATIONS, check_relation, check_witness_transport
+from .node_checks import inspect_node
 from .lift_inspection import InspectionQuota, LiftInspection
-from .reuse_ops import admit_witness
-from qeclang.constructions.records import to_dict as construction_record
 
 
 @dataclass(frozen=True)
@@ -20,6 +16,8 @@ class InspectionLimits:
     max_rank_steps: int = 1_000_000
     max_lift_comparison_units: int = 1_000_000
     max_row_map_work: int = 1_000_000
+    max_exclusion_verify_steps: int = 1_000_000
+    max_exclusion_indices: int = 100_000
     max_blocks: int = 100_000
     max_symbolic_terms: int = 100_000
     max_lift_degree: int = 512
@@ -31,7 +29,8 @@ class InspectionLimits:
 
     def __post_init__(self):
         for value in (self.max_relation_checks, self.max_certificates, self.max_rank_steps,
-                      self.max_lift_comparison_units, self.max_row_map_work, self.max_blocks, self.max_symbolic_terms, self.max_lift_degree,
+                      self.max_lift_comparison_units, self.max_row_map_work, self.max_exclusion_verify_steps,
+                      self.max_exclusion_indices, self.max_blocks, self.max_symbolic_terms, self.max_lift_degree,
                       self.max_polynomial_degree, self.max_polynomial_operations):
             if type(value) is not int or value < 0:
                 raise ValueError("inspection counters must be nonnegative integers")
@@ -68,45 +67,14 @@ def _stop_marker(node, step, status, bindings):
     if status == 'budget_exhausted':
         _require(type(step.get('resource')) is str and bool(step['resource']),
                  'budget stop requires a resource name')
-        extra = {'resource'} if step['resource'] == 'artifact_admission' else {'resource', 'requested', 'available'}
+        extra = ({'resource'} if step['resource'] in ('artifact_admission', 'exclusion_verification')
+                 else {'resource', 'requested', 'available'})
         _require(set(step) == _STOP_FIELDS | extra, 'invalid budget stop fields')
         if 'requested' in extra:
             _require(all(type(step[key]) is int and step[key] >= 0 for key in ('requested', 'available')),
                      'budget stop amounts must be nonnegative integers')
     else:
         _require(set(step) == _STOP_FIELDS, 'non-budget stop contains unexpected fields')
-
-
-def _literal(code, record):
-    _require(code.n == record['n'], "CSS literal width differs from program")
-    for matrix, key in ((code.hx, 'hx'), (code.hz, 'hz')):
-        raw = record[key]
-        _require(matrix.nrows == len(raw), "CSS literal check count differs from program")
-        for row, sites in zip(matrix.rows, raw):
-            _require(set(set_bits(row)) == set(sites), "CSS literal support differs from program")
-
-
-def _distance_binding(value, code, node):
-    _require(value['source'] == presentation_fingerprint(code) and value['sector'] == node.sector,
-             "distance report has a different source or sector")
-    witness = value['witness']
-    if witness is not None:
-        _require(witness.bit_length() <= code.n, "reported witness exceeds physical width")
-        _require(1 <= value['upper_bound'] <= code.n, "reported bounds exceed physical width")
-    # These are elementary consistency tests, not a check of exhausted weight layers.
-    params = node.params
-    _require(value['candidates'] <= params['max_candidates'] and
-             value['searched_through'] <= params['max_weight'], "reported search exceeds node request")
-
-
-def _witness(value, code, report):
-    _require(value['kind'] == 'css_logical' and value['claim']['sector'] == report['sector'],
-             "witness kind/sector differs from distance report")
-    _require(verify_certificate_record(code, value, max_axis=code.n, max_bits=2*code.n),
-             "logical upper-bound certificate failed independent verification")
-    _require(int(value['certificate']['operator'], 16) == report['witness'] and
-             value['claim']['distance_upper_bound'] == report['upper_bound'],
-             "witness does not certify the reported operator/upper bound")
 
 
 class _Reader:
@@ -116,7 +84,9 @@ class _Reader:
         self.imports = ImportBudget(max_artifact_bytes=limits.artifacts.max_bytes,
                                     max_validation_work=limits.artifacts.max_validation_work)
         self.lifts = LiftInspection(limits.max_rank_steps, limits.max_lift_comparison_units)
-        self.counts = {'relation_checks': 0, 'certificates': 0, 'row_map_work': 0}
+        self.counts = {'relation_checks': 0, 'certificates': 0, 'row_map_work': 0, 'exclusion_verify_steps': 0}
+        self.checked_exclusions = set()
+        self.checked_intervals = set()
         self.prefix_nodes = ()
         self.stop = None
 
@@ -169,51 +139,7 @@ def _inspect(program, record, reader, allow_prefix):
             values[key] = import_artifact(artifact, node.result_type, limits=limits.artifacts, budget=reader.imports)
         value = values[key]
         args = [values[d] for d in refs]
-        if node.op in BASED_RELATIONS or node.op in ('css.transport', 'lift.css', 'css.rebase_witness'):
-            reader.charge('relation_checks')
-        is_witness = node.result_type == 'witness'
-        if (is_witness or
-                (node.op == 'lift.parameters' and node.params['record_operations'] and value['status'] == 'exact')):
-            reader.charge('certificates')
-        if node.op == 'css.literal':
-            _literal(value, node.params['code'])
-        elif node.op == 'lift.literal':
-            _require(construction_record(value) == node.params['construction'], 'lift literal differs from program')
-        elif node.op == 'lift.parameters':
-            verified = reader.lifts.parameters(node, args[0], value, key, limits)
-            if verified is not None:
-                claims.append(verified)
-        elif node.op in BASED_RELATIONS or node.op == 'lift.css':
-            guarantees = (reader.lifts.expansion(args[0], value) if node.op == 'lift.css'
-                          else check_relation(node.op, args[0], value, node.params))
-            relations.append({'node': node.id, 'operation': node.op, 'source': refs[0],
-                              'target': key, 'guarantees': list(guarantees)})
-        elif node.op == 'css.distance':
-            _distance_binding(value, args[0], node)
-            reported.append(node.id)
-        elif node.op == 'css.witness':
-            _witness(value, args[0], args[1])
-        elif node.op == 'css.import_witness':
-            _require(value == node.params['certificate'], 'stored witness differs from program input')
-            admit_witness(args[0], value)
-        elif node.op == 'css.rebase_witness':
-            from .row_equivalence import check_rebound, row_equivalence_work
-            maps = node.params
-            reader.charge('row_map_work', row_equivalence_work(args[0], args[1], maps))
-            check_rebound(args[0], args[1], maps, args[2], value)
-            relations.append({'node': node.id, 'operation': node.op, 'source': refs[0], 'target': refs[1],
-                              'source_witness': refs[2], 'target_witness': key,
-                              'relation': 'equal_positive_css_row_spaces_in_fixed_physical_basis'})
-        elif node.op == 'css.transport':
-            check_witness_transport(args[0], args[1], node.params['permutation'], args[2], value)
-            relations.append({'node': node.id, 'operation': node.op, 'source': refs[0],
-                              'target': refs[1], 'source_witness': refs[2], 'target_witness': key})
-        else:
-            raise ValueError('inspection has no checker for this instruction')
-        if is_witness:
-            claims.append({'node': node.id, 'scope': 'instance', 'source': value['source'],
-                           'predicate': 'distance_upper_bound', 'sector': node.sector,
-                           'bound': value['claim']['distance_upper_bound'], 'evidence': key})
+        inspect_node(node, args, refs, value, key, reader, claims, relations, reported)
         bindings[node.id] = key
     if stopped:
         terminal = program.nodes[len(completed)]
@@ -257,6 +183,8 @@ def inspect_run(program: Program, record, *, limits=InspectionLimits(), allow_pr
     structured = any(n.op.startswith('lift.') for n in program.nodes)
     scope = ('based_relations_css_upper_witnesses_and_traced_ranks' if structured
              else 'based_relations_and_css_upper_witnesses')
+    if any(n.op in ('css.exclude', 'css.combine_distance') for n in program.nodes):
+        scope = 'declared_workflow_relations_and_explicit_proof_premises'
     checked_nodes = {c['node'] for c in claims}
     inspected_nodes = ({node.id for node in program.nodes} if status == 'checked'
                        else set(reader.prefix_nodes) if status == 'checked_prefix' else set())
@@ -265,7 +193,7 @@ def inspect_run(program: Program, record, *, limits=InspectionLimits(), allow_pr
             'relations': relations, 'reported_distance_nodes': reported, 'reason': reason,
             'unverified_parameter_nodes': [n.id for n in program.nodes if n.op == 'lift.parameters'
                                           and n.id in inspected_nodes and n.id not in checked_nodes],
-            'unverified': ['distance_lower_bounds', 'distance_exactness', 'no_logicals',
+            'unverified': ['raw_search_distance_lower_bounds', 'raw_search_distance_exactness', 'raw_search_no_logicals',
                            'runtime', 'ledger', 'candidate_counts', 'recorded_assurance']}
 
     if status == 'checked_prefix':

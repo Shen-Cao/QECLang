@@ -89,6 +89,11 @@ emits a certificate on the new presentation with zero new search candidates.
 The [comparison with fresh target analysis](docs/witness_reuse_evaluation.md)
 reports both the resulting bounds and the costs of deriving and checking maps.
 
+The [Steane distance program](examples/programs/exact_steane.json) also produces
+independent lower-bound evidence. Its [column checks](docs/low_weight.md) exclude
+nontrivial X and Z operators of weights one and two. Joining these exclusions
+with the two weight-three upper witnesses certifies full CSS distance three.
+
 | Layer | Available functionality |
 |---|---|
 | Exact algebra | Immutable packed and sparse GF(2) matrices; exact packed rank, kernel, solve, products; guarded conversions and optional SciPy interchange |
